@@ -2,7 +2,7 @@
 
 [🇧🇷 Português](README.md) · [🇺🇸 English](README.en.md) · 🇪🇸 Español
 
-# 🛠️ DeskcommCRM — El Sistema Operativo de Ventas con Agentes de IA
+# 🛠️ LinkVozCRM — El Sistema Operativo de Ventas con Agentes de IA
 
 **Agentes de IA que atienden, califican y venden por WhatsApp — dentro de un CRM open source corriendo en tu propio servidor.**
 **Sin mensualidad, sin funciones bloqueadas, tus datos contigo. La alternativa abierta a Kommo, Octadesk e Intercom.**
