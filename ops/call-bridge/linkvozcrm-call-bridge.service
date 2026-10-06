@@ -5,7 +5,7 @@ Requires=call-communication-api.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/socat TCP-LISTEN:3011,bind=172.19.0.1,reuseaddr,fork,keepalive TCP:127.0.0.1:3001
+ExecStart=/usr/bin/socat TCP-LISTEN:3011,bind=172.17.0.1,reuseaddr,fork,keepalive TCP:127.0.0.1:3001
 Restart=always
 RestartSec=2
 User=nobody
