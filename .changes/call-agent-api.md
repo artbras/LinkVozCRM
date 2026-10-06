@@ -1,5 +1,7 @@
 ---
-efeito: capacidade_nova
+impacto: capacidade_nova
+secao: adicionado
+titulo: O agente consulta o sistema de táxi somente por ferramentas de leitura
 ---
 
 - Adiciona duas ferramentas de consulta somente leitura ao sistema de táxi/call.
