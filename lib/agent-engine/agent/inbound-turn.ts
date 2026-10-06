@@ -150,6 +150,7 @@ import {
 import { buildMcpTurnTools } from '../edge/crm/mcp-tools';
 import { definicaoNaConexao } from '@/lib/channels/linha-do-espelho';
 import { cancelPendingCronsForLead } from '../cron/scheduler';
+import { requiredCallLookupTool, type CallLookupToolName } from './call-verification';
 import {
   latestInboundSignal,
   recentInboundSignal,
@@ -2614,6 +2615,7 @@ async function executarTurnoDoAgente(
   // as tools do modelo rodam em passos anteriores do mesmo loop, o valor já está certo
   // quando o modelo decide mandar a resposta.
   let agendaToolCalledThisTurn = false;
+  let callToolCalledThisTurn: CallLookupToolName | null = null;
   const outcomes: ChannelSendResult[] = [];
   // Citações acumuladas por buscas de conhecimento DESTE turno — anexadas à
   // próxima outbound enviada (shape de lib/ai/citations/types, que a UI já lê).
@@ -3790,6 +3792,22 @@ async function executarTurnoDoAgente(
                   return executeOriginal(...args);
                 }) as typeof mcpTool.execute,
               };
+            } else if (
+              (name === 'crm_call_lookup_client' || name === 'crm_call_lookup_company') &&
+              typeof mcpTool.execute === 'function'
+            ) {
+              const executeOriginal = mcpTool.execute.bind(mcpTool);
+              rawTools[name] = {
+                ...mcpTool,
+                execute: (async (...args: Parameters<typeof executeOriginal>) => {
+                  callToolCalledThisTurn = name as CallLookupToolName;
+                  runLog.info('ferramenta Call executada', {
+                    tool_name: name,
+                    comprovacao: 'tool_execute',
+                  });
+                  return executeOriginal(...args);
+                }) as typeof mcpTool.execute,
+              };
             } else {
               rawTools[name] = mcpTool;
             }
@@ -4056,6 +4074,20 @@ async function executarTurnoDoAgente(
     // este corpo inteiro. Escoltar aqui deixaria de fora as chamadas de modelo dos
     // auxiliares (`classifyStage`, `maybeCompact`), que rodam ANTES desta e por
     // isso são as que estouram primeiro.
+    const requiredCallTool = requiredCallLookupTool(currentInboundText);
+    if (requiredCallTool !== null) {
+      if (!(requiredCallTool in tools)) {
+        runLog.error('consulta Call obrigatória indisponível — turno recusado', {
+          required_tool: requiredCallTool,
+          motivo: 'tool_not_mounted',
+        });
+        throw new Error(`ferramenta Call obrigatória não montada: ${requiredCallTool}`);
+      }
+      runLog.info('consulta Call obrigatória armada', {
+        required_tool: requiredCallTool,
+        comprovacao: 'tool_choice_required_first_step',
+      });
+    }
     const turn = await runModelCall(
       pool,
       deps.llmCfg,
@@ -4073,6 +4105,7 @@ async function executarTurnoDoAgente(
         messages: openingMessages,
         tools,
         maxSteps,
+        ...(requiredCallTool !== null ? { requiredToolName: requiredCallTool } : {}),
         // Rascunho: a resposta é o send_message ACEITO; a etapa seguinte só
         // "encerrava". Aceito, e não chamado: o envio vetado pela cadeia
         // before_send volta ao modelo para ele reescrever (o 1º veto ensina).
@@ -4091,6 +4124,15 @@ async function executarTurnoDoAgente(
       },
       { registry: deps.registry, log: runLog },
     );
+
+    if (requiredCallTool !== null && callToolCalledThisTurn !== requiredCallTool) {
+      runLog.error('consulta Call obrigatória não executada — resposta bloqueada', {
+        required_tool: requiredCallTool,
+        executed_tool: callToolCalledThisTurn,
+        comprovacao: 'missing_tool_execute',
+      });
+      throw new Error(`consulta Call obrigatória não executada: ${requiredCallTool}`);
+    }
 
     // F4-04: correlação dos dois sinais do MESMO turno — jailbreak ALTO + tentativa de
     // promessa fora de tabela (F4-01). Ambos estão determinados aqui (o jailbreak rodou na

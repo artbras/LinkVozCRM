@@ -220,6 +220,8 @@ export interface RunModelCallInput {
    * reescrever na etapa seguinte, e parar ali entregava rascunho vazio.
    */
   pararQuando?: () => boolean;
+  /** Tool obrigatória na primeira etapa; as seguintes voltam ao modo automático. */
+  requiredToolName?: string;
   /** Teto por chamada auxiliar; nunca aumenta o limite configurado pela organização. */
   maxOutputTokens?: number;
   /** Cancelamento propagado pelo chamador; a falha continua registrada em llm_calls. */
@@ -679,6 +681,15 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
           : input.pararQuando === undefined
             ? stepCountIs(input.maxSteps)
             : [stepCountIs(input.maxSteps), input.pararQuando],
+      // Consultas factuais ao Call não podem depender da memória do modelo.
+      ...(input.requiredToolName
+        ? {
+            prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+              stepNumber === 0
+                ? { toolChoice: { type: 'tool' as const, toolName: input.requiredToolName! } }
+                : { toolChoice: 'auto' as const },
+          }
+        : {}),
       temperature,
       topP,
       topK,
