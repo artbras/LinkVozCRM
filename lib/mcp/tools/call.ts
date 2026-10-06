@@ -347,7 +347,10 @@ export const crmCallRequestReschedule: McpToolDefinition<typeof reagendarServico
   },
 };
 
-const prepararServicoShape = solicitarServicoShape;
+const prepararServicoShape = {
+  ...solicitarServicoShape,
+  modalidade: z.enum(["imediata", "agendada"]).describe("imediata = agora; agendada = data e horário futuros"),
+};
 
 export const crmCallPrepareService: McpToolDefinition<typeof prepararServicoShape> = {
   name: "crm_call_prepare_service",
@@ -359,6 +362,9 @@ export const crmCallPrepareService: McpToolDefinition<typeof prepararServicoShap
   handler: async (input, ctx) => {
     const config = configDoCall();
     if (!config.ok) return { erro: "call_nao_configurado", mensagem: config.mensagem };
+    if (input.modalidade === "agendada" && !input.data_servico) {
+      return { erro: "data_agendada_obrigatoria", mensagem: "corrida agendada exige data e horário completos." };
+    }
     const { data, error } = await ctx.supabase.from("call_service_drafts").insert({
       organization_id: ctx.organizationId,
       franchise_id: config.franchiseId,
