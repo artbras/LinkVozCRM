@@ -1,0 +1,28 @@
+[Unit]
+Description=LinkVozCRM Hermes Proxy para OpenAI Codex OAuth
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/linkvozcrm/codex-proxy
+EnvironmentFile=/etc/linkvozcrm/codex-proxy.env
+Environment=HERMES_AUTH_PATH=/root/.hermes/auth.json
+Environment=LISTEN_HOST=172.17.0.1
+Environment=LISTEN_PORT=8646
+Environment=CODEX_MODEL=gpt-5.6-luna
+ExecStart=/usr/local/lib/hermes-agent/venv/bin/python /opt/linkvozcrm/codex-proxy/codex_proxy.py
+Restart=always
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ReadOnlyPaths=/root/.hermes/auth.json /opt/linkvozcrm/codex-proxy
+ReadWritePaths=/root/.hermes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
