@@ -185,7 +185,26 @@ async def _request_upstream(payload: dict[str, Any]) -> tuple[int, dict[str, str
     return response.status, dict(response.headers), response, session
 
 
-async def chat_completions(request: web.Request) -> web.StreamResponse:
+async def _events(response: aiohttp.ClientResponse):
+    """Yield decoded SSE events; TCP chunks are not guaranteed to be lines."""
+    buffer = ""
+    async for raw in response.content.iter_any():
+        buffer += raw.decode("utf-8", "ignore")
+        while "\n" in buffer:
+            line, buffer = buffer.split("\n", 1)
+            line = line.rstrip("\r")
+            if not line.startswith("data:"):
+                continue
+            value = line[5:].strip()
+            if value == "[DONE]":
+                continue
+            try:
+                yield json.loads(value)
+            except json.JSONDecodeError:
+                continue
+
+
+async def chat_completions(request: web.Request):
     _check_client_key(request)
     body = await request.read()
     if len(body) > MAX_BYTES:
@@ -214,17 +233,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         completed: dict[str, Any] | None = None
         text_parts: list[str] = []
         function_calls: dict[str, dict[str, Any]] = {}
-        async for raw in upstream.content:
-            line = raw.decode("utf-8", "ignore")
-            if not line.startswith("data:"):
-                continue
-            raw_data = line[5:].strip()
-            if raw_data == "[DONE]":
-                continue
-            try:
-                event = json.loads(raw_data)
-            except json.JSONDecodeError:
-                continue
+        async for event in _events(upstream):
             if event.get("type") == "response.completed" and isinstance(event.get("response"), dict):
                 completed = event["response"]
             elif event.get("type") == "response.output_text.delta":
@@ -241,17 +250,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
     out = web.StreamResponse(status=status, headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache"})
     await out.prepare(request)
     try:
-        async for raw in upstream.content:
-            line = raw.decode("utf-8", "ignore")
-            if not line.startswith("data:"):
-                continue
-            raw_data = line[5:].strip()
-            if raw_data == "[DONE]":
-                continue
-            try:
-                event = json.loads(raw_data)
-            except json.JSONDecodeError:
-                continue
+        async for event in _events(upstream):
             event_type = event.get("type", "")
             delta = ""
             if event_type == "response.output_text.delta":
