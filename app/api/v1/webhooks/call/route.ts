@@ -42,7 +42,6 @@ async function enviarAtualizacaoProativa(
         organization_id: organizationId,
         actor: { type: "ai_agent", id: "call-webhook", role: "manager" },
         requestId: eventId,
-        internalMessageId: eventId,
       },
       {
         conversation_id: conversation.id,
