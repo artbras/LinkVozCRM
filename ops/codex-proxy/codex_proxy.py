@@ -234,23 +234,28 @@ async def chat_completions(request: web.Request):
         completed: dict[str, Any] | None = None
         text_parts: list[str] = []
         function_calls: dict[str, dict[str, Any]] = {}
+        function_call_aliases: dict[str, str] = {}
         async for event in _events(upstream):
             event_type = event.get("type")
             if event_type == "response.output_item.added":
                 item = event.get("item") or {}
                 if item.get("type") == "function_call":
                     key = str(item.get("call_id") or item.get("id") or "")
+                    function_call_aliases[str(item.get("id") or "")] = key
+                    function_call_aliases[str(item.get("call_id") or "")] = key
                     function_calls[key] = {"type": "function_call", "call_id": item.get("call_id") or item.get("id", ""), "name": item.get("name", ""), "arguments": item.get("arguments", "")}
             elif event_type == "response.completed" and isinstance(event.get("response"), dict):
                 completed = event["response"]
             elif event_type == "response.output_text.delta":
                 text_parts.append(str(event.get("delta", "")))
             elif event_type == "response.function_call_arguments.delta":
-                key = str(event.get("item_id") or event.get("call_id") or "")
+                raw_key = str(event.get("item_id") or event.get("call_id") or "")
+                key = function_call_aliases.get(raw_key, raw_key)
                 call = function_calls.setdefault(key, {"type": "function_call", "call_id": key, "name": "", "arguments": ""})
                 call["arguments"] += str(event.get("delta", ""))
             elif event_type == "response.function_call_arguments.done":
-                key = str(event.get("item_id") or event.get("call_id") or "")
+                raw_key = str(event.get("item_id") or event.get("call_id") or "")
+                key = function_call_aliases.get(raw_key, raw_key)
                 call = function_calls.setdefault(key, {"type": "function_call", "call_id": key, "name": "", "arguments": ""})
                 call["arguments"] = str(event.get("arguments", call["arguments"]))
         data = completed or {"id": "resp-codex", "output": []}
