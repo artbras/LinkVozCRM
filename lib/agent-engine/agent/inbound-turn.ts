@@ -151,6 +151,7 @@ import { buildMcpTurnTools } from '../edge/crm/mcp-tools';
 import { definicaoNaConexao } from '@/lib/channels/linha-do-espelho';
 import { cancelPendingCronsForLead } from '../cron/scheduler';
 import { requiredCallLookupTool, type CallLookupToolName } from './call-verification';
+import { isDuplicateMessageBody, messageBodyKey } from './duplicate-message';
 import {
   latestInboundSignal,
   recentInboundSignal,
@@ -2530,6 +2531,9 @@ async function executarTurnoDoAgente(
   // O que o modelo de fato mandou neste turno (depois da cadeia). A trava "a
   // pergunta saiu?" do roteiro de atendimento lê daqui.
   const corposEnviados: string[] = [];
+  // Deduplicação por conteúdo dentro do turno: permite bolhas diferentes, mas
+  // nunca envia duas vezes a mesma resposta (mesmo com whitespace/capitalização diferentes).
+  const corposEnviadosNoTurno = new Set<string>();
   // Teto de mensagens físicas por turno (F2-15b) — `seq` JÁ é a contagem certa: ele só
   // avança quando o envio de fato sai pro canal (send_message + send_template, bolhas
   // incluídas), nunca em veto de gate. Checar `seq` antes de tentar o próximo envio
@@ -2828,6 +2832,19 @@ async function executarTurnoDoAgente(
           language,
           parameterFormat: linha.parameter_format,
         });
+        if (corposEnviadosNoTurno.has(messageBodyKey(rendered))) {
+          runLog.warn('mensagem duplicada bloqueada no mesmo turno', {
+            motivo: 'mesmo_conteudo_normalizado',
+            canal: 'template',
+          });
+          return {
+            ok: false,
+            error: {
+              code: 'duplicate_message_same_turn',
+              message: 'Essa mesma mensagem já foi enviada neste turno. Não reenvie; encerre o turno agora.',
+            },
+          };
+        }
 
         const chain = await runBeforeSend({
           pool,
@@ -2866,6 +2883,13 @@ async function executarTurnoDoAgente(
         }
         const outcome = chain.outcome;
         outcomes.push(outcome);
+        if (
+          outcome.kind === 'sent' ||
+          outcome.kind === 'already_sent' ||
+          outcome.kind === 'queued'
+        ) {
+          isDuplicateMessageBody(corposEnviadosNoTurno, rendered);
+        }
         if (outcome.kind === 'sent' || outcome.kind === 'already_sent') {
           return {
             ok: true,
@@ -2935,6 +2959,19 @@ async function executarTurnoDoAgente(
               code: 'corpo_vazio',
               message:
                 'O texto da mensagem ficou vazio. Escreva a resposta de verdade e chame send_message de novo.',
+            },
+          };
+        }
+        if (corposEnviadosNoTurno.has(messageBodyKey(body))) {
+          runLog.warn('mensagem duplicada bloqueada no mesmo turno', {
+            motivo: 'mesmo_conteudo_normalizado',
+          });
+          return {
+            ok: false,
+            error: {
+              code: 'duplicate_message_same_turn',
+              message:
+                'Essa mesma mensagem já foi enviada neste turno. Não reenvie; encerre o turno agora.',
             },
           };
         }
@@ -3255,6 +3292,13 @@ async function executarTurnoDoAgente(
           }
           const outcome = chain.outcome;
           outcomes.push(outcome);
+          if (
+            outcome.kind === 'sent' ||
+            outcome.kind === 'already_sent' ||
+            outcome.kind === 'queued'
+          ) {
+            isDuplicateMessageBody(corposEnviadosNoTurno, body);
+          }
           if (outcome.kind === 'sent' && pendingCitations.length > 0) {
             try {
               await pool.query(
