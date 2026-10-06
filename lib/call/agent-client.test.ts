@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { consultarCliente, consultarEmpresa } from "./agent-client";
+import {
+  cancelarServico,
+  consultarCliente,
+  consultarEmpresa,
+  criarServico,
+  solicitarRetorno,
+} from "./agent-client";
 
 describe("cliente HTTP do sistema Call", () => {
   afterEach(() => {
@@ -49,6 +55,70 @@ describe("cliente HTTP do sistema Call", () => {
     });
 
     expect(result).toEqual({ ok: false, code: "CLIENT_NOT_FOUND" });
+  });
+
+  it("expõe as escritas Call com payloads explícitos", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ success: true, data: { id_servico: 88 } }), { status: 200 }),
+      );
+
+    await criarServico({
+      baseUrl: "http://call.test:3011",
+      franchiseId: 12,
+      nomePassageiro: "Maria",
+      telefone: "+55 (21) 99999-9999",
+      endereco: "Rua das Flores",
+      numero: "15",
+      bairro: "Centro",
+      cidade: "Niterói",
+      destino: "Aeroporto",
+    });
+    await cancelarServico({ baseUrl: "http://call.test:3011", franchiseId: 12, serviceId: 88 });
+    await solicitarRetorno({
+      baseUrl: "http://call.test:3011",
+      franchiseId: 12,
+      serviceId: 88,
+      message: "Retornar ao cliente",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://call.test:3011/internal/agent",
+      expect.objectContaining({
+        body: JSON.stringify({
+          acao: "add_service",
+          idf: 12,
+          nome_passageiro: "Maria",
+          telefone: "5521999999999",
+          endereco: "Rua das Flores",
+          numero: "15",
+          bairro: "Centro",
+          cidade: "Niterói",
+          destino: "Aeroporto",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://call.test:3011/internal/agent",
+      expect.objectContaining({
+        body: JSON.stringify({ acao: "cancel_service", idf: 12, id_servico: 88 }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://call.test:3011/internal/agent",
+      expect.objectContaining({
+        body: JSON.stringify({
+          acao: "return_service",
+          idf: 12,
+          id_servico: 88,
+          mensagem: "Retornar ao cliente",
+        }),
+      }),
+    );
   });
 
   it("consulta empresa somente com id inteiro positivo", async () => {

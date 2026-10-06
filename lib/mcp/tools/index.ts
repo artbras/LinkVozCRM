@@ -39,7 +39,13 @@ import {
   crmSaveOrgMemory,
 } from "./evolucao";
 import { crmListContactOrders, crmSearchProducts } from "./comercio";
-import { crmCallLookupClient, crmCallLookupCompany } from "./call";
+import {
+  crmCallCancelService,
+  crmCallCreateService,
+  crmCallLookupClient,
+  crmCallLookupCompany,
+  crmCallRequestReturn,
+} from "./call";
 import { crmDescribeExternalData, crmQueryExternalData } from "./dados-externos";
 import { crmListPrivacyRequests } from "./privacidade";
 import {
@@ -109,6 +115,10 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmSearchProducts,
   crmCallLookupClient,
   crmCallLookupCompany,
+  // write — Call (protegidas por mcp:write; não habilitadas no agente publicado atual)
+  crmCallCreateService,
+  crmCallCancelService,
+  crmCallRequestReturn,
   crmDescribeExternalData,
   crmQueryExternalData,
   crmListPrivacyRequests,
