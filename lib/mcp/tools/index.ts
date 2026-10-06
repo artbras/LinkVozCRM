@@ -17,21 +17,11 @@ import {
   crmGetConversation,
   crmGetConversationHistory,
 } from "./conversations";
-import {
-  crmListLeads,
-  crmGetLead,
-  crmCreateLead,
-  crmUpdateLead,
-  crmMoveLeadStage,
-} from "./leads";
+import { crmListLeads, crmGetLead, crmCreateLead, crmUpdateLead, crmMoveLeadStage } from "./leads";
 import { crmListPipelines } from "./pipelines";
 import { crmSendWhatsappMessage } from "./messages";
 import { crmStartConversationAndSend } from "./start-conversation";
-import {
-  crmAssignConversation,
-  crmManageTags,
-  crmGetQueueStatus,
-} from "./governance";
+import { crmAssignConversation, crmManageTags, crmGetQueueStatus } from "./governance";
 import {
   crmListAvailableAttendants,
   crmListHumanCases,
@@ -49,6 +39,7 @@ import {
   crmSaveOrgMemory,
 } from "./evolucao";
 import { crmListContactOrders, crmSearchProducts } from "./comercio";
+import { crmCallLookupClient, crmCallLookupCompany } from "./call";
 import { crmDescribeExternalData, crmQueryExternalData } from "./dados-externos";
 import { crmListPrivacyRequests } from "./privacidade";
 import {
@@ -116,6 +107,8 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmSaveOrgMemory,
   crmListContactOrders,
   crmSearchProducts,
+  crmCallLookupClient,
+  crmCallLookupCompany,
   crmDescribeExternalData,
   crmQueryExternalData,
   crmListPrivacyRequests,

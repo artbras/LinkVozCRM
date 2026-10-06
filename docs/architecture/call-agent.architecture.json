@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Integração do agente com o sistema Call",
+    "subtitle": "Consultas somente leitura da central de táxi",
+    "output": "call-agent.architecture.html",
+    "quality_profile": "standard"
+  },
+  "lanes": [
+    { "id": "cliente", "label": "Cliente" },
+    { "id": "crm", "label": "LinkVozCRM" },
+    { "id": "ponte", "label": "Rede local" },
+    { "id": "call", "label": "Sistema Call" }
+  ],
+  "mainPath": ["whatsapp", "agente", "tool", "bridge", "api"],
+  "nodes": [
+    { "id": "whatsapp", "lane": "cliente", "col": 1, "type": "service", "label": "WhatsApp / conversa" },
+    { "id": "agente", "lane": "crm", "col": 2, "type": "service", "label": "Agent-engine / tool calling" },
+    { "id": "tool", "lane": "crm", "col": 3, "type": "lib", "label": "crm_call_lookup_client / company" },
+    { "id": "bridge", "lane": "ponte", "col": 4, "type": "service", "label": "socat 3011 → 127.0.0.1:3001" },
+    { "id": "api", "lane": "call", "col": 5, "type": "route", "label": "POST /internal/agent" },
+    { "id": "audit", "lane": "crm", "col": 4, "type": "database", "label": "api_audit_log sem telefone" }
+  ],
+  "edges": [
+    { "id": "e1", "from": "whatsapp", "to": "agente", "label": "mensagem recebida" },
+    { "id": "e2", "from": "agente", "to": "tool", "label": "consulta autorizada" },
+    { "id": "e3", "from": "tool", "to": "bridge", "label": "HTTP privado" },
+    { "id": "e4", "from": "bridge", "to": "api", "label": "origem loopback" },
+    { "id": "e5", "from": "api", "to": "tool", "label": "cadastro/histórico" },
+    { "id": "e6", "from": "tool", "to": "audit", "label": "resultado e args redigidos" },
+    { "id": "e7", "from": "agente", "to": "whatsapp", "label": "resposta ou handoff" }
+  ]
+}

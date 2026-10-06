@@ -28,9 +28,7 @@ const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
  * pra permitir setup parcial (ex: dev sem WAHA quando trabalhando só na UI).
  */
 const required = (name: string) =>
-  isProd
-    ? z.string().min(1, `${name} é obrigatória em produção`)
-    : z.string().default("");
+  isProd ? z.string().min(1, `${name} é obrigatória em produção`) : z.string().default("");
 
 const requiredAlways = (name: string) => z.string().min(1, `${name} é obrigatória`);
 
@@ -233,6 +231,12 @@ const schema = z.object({
   // tela nunca foi usada. Vazio é ausente: sem ela, nada passa. Quem lê é
   // `lib/automation/destinos-internos-autorizados.ts`.
   IA_DESTINOS_INTERNOS_PERMITIDOS: z.string().optional().default(""),
+
+  // Integração somente leitura com o sistema de táxi/call. O endpoint fica
+  // restrito ao host; em Docker, CALL_AGENT_API_BASE_URL aponta para uma ponte
+  // local allowlisted, nunca para uma URL escolhida pela organização.
+  CALL_AGENT_API_BASE_URL: z.string().optional().default(""),
+  CALL_AGENT_FRANCHISE_ID: z.coerce.number().int().positive().optional(),
 
   // Fusão (Fase 4): DONO ÚNICO dos eventos ai_agent.dispatch_requested.
   // 'engine' (default) = o worker agent-engine é o único consumidor (o cron
@@ -441,14 +445,8 @@ const schema = z.object({
     .transform((v) => v === "true"),
 
   // App URLs
-  NEXT_PUBLIC_APP_URL: z
-    .string()
-    .url()
-    .default("http://localhost:3000"),
-  NEXT_PUBLIC_ADMIN_URL: z
-    .string()
-    .url()
-    .default("http://localhost:3000"),
+  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  NEXT_PUBLIC_ADMIN_URL: z.string().url().default("http://localhost:3000"),
   /**
    * URL pública opcional para os webhooks da Meta (WhatsApp Cloud API / canais oficiais).
    * Quando definida, é usada no lugar de NEXT_PUBLIC_APP_URL para compor a URL de callback

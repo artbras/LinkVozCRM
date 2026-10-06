@@ -1,0 +1,17 @@
+[Unit]
+Description=LinkVozCRM bridge para a API interna do sistema Call
+After=docker.service call-communication-api.service
+Requires=call-communication-api.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/socat TCP-LISTEN:3011,bind=172.19.0.1,reuseaddr,fork,keepalive TCP:127.0.0.1:3001
+Restart=always
+RestartSec=2
+User=nobody
+Group=nogroup
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
