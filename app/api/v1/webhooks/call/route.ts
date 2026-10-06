@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMessageHandler } from "@/app/api/v1/messages/_handler";
+import { triggerHandoff } from "@/lib/ai/handoff/orchestrator";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,121 @@ function mensagemOperacional(body: Record<string, unknown>): string | null {
   if (raw === "TRIPULADO") return "A corrida foi iniciada.";
   if (raw === "FINALIZADO") return "A corrida foi finalizada.";
   return null;
+}
+
+type OperationalException = { category: string; severity: "medium" | "high" | "critical"; automaticHandoff: boolean };
+
+function normalizarCodigo(raw: string): string {
+  return raw.normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase();
+}
+
+function excecaoOperacional(body: Record<string, unknown>): OperationalException | null {
+  const raw = normalizarCodigo(typeof body.mensagem === "string" ? body.mensagem.trim() : "");
+  if (!raw) return null;
+  if (raw.includes("ACIDENTE") || raw.includes("EMERGENCIA") || raw.includes("RISCO"))
+    return { category: "critical_event", severity: "critical", automaticHandoff: true };
+  if (raw === "SEM CONTATO" || raw.includes("NAO LOCALIZADO"))
+    return { category: "no_contact", severity: "high", automaticHandoff: true };
+  if (raw.includes("SEM MOTORISTA") || raw.includes("SEM VEICULO") || raw.includes("NENHUM MOTORISTA") || raw.includes("SEM ACEITE"))
+    return { category: "no_driver", severity: "high", automaticHandoff: true };
+  if (raw.includes("TIMEOUT") || raw.includes("DESPACHO ESGOT") || raw.includes("TENTATIVA ESGOT"))
+    return { category: "dispatch_timeout", severity: "high", automaticHandoff: true };
+  if (raw.includes("FALHA") || raw.includes("ERRO OPERACIONAL"))
+    return { category: "unknown_operational_failure", severity: "high", automaticHandoff: true };
+  if (raw === "+10 MINS" || raw === "MAIS 10MIN")
+    return { category: "driver_delay", severity: "medium", automaticHandoff: false };
+  return null;
+}
+
+function estadoOperacional(body: Record<string, unknown>) {
+  const raw = normalizarCodigo(typeof body.mensagem === "string" ? body.mensagem.trim() : "");
+  const eta = /^TEMPO=(5|10|15|20)$/.exec(raw)?.[1];
+  const status = eta ? "motorista_a_caminho"
+    : raw === "TEMPO=QTR" ? "horario_marcado"
+      : raw === "+10 MINS" || raw === "MAIS 10MIN" ? "atrasada"
+        : raw === "PORTA" ? "motorista_na_porta"
+          : raw === "SEM CONTATO" ? "sem_contato"
+            : raw === "TRIPULADO" ? "em_andamento"
+              : raw === "FINALIZADO" ? "finalizada"
+                : "evento_recebido";
+  return { status, event_code: raw || null, eta_minutes: eta ? Number(eta) : null };
+}
+
+async function processarEventoOperacional(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  eventId: string,
+  franchiseId: number,
+  serviceId: number,
+  body: Record<string, unknown>,
+): Promise<{ exception: string | null; handoff: boolean }> {
+  const estado = estadoOperacional(body);
+  await admin.from("call_service_operational_state").upsert({
+    organization_id: organizationId,
+    franchise_id: franchiseId,
+    service_id: serviceId,
+    status: estado.status,
+    event_id: eventId,
+    event_code: estado.event_code,
+    eta_minutes: estado.eta_minutes,
+    eta_received_at: estado.eta_minutes === null ? null : new Date().toISOString(),
+    unit: body.unidade ?? null,
+    unit_name: body.nm_unidade ?? null,
+    vehicle_model: body.modelo ?? null,
+    plate: body.placa ?? null,
+    payload: body,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "organization_id,service_id" });
+
+  const excecao = excecaoOperacional(body);
+  if (!excecao) return { exception: null, handoff: false };
+  const telefone = typeof body.ps_tel === "string" ? body.ps_tel.replace(/\D/g, "") : "";
+  const { data: contact } = telefone.length >= 10
+    ? await admin.from("contacts").select("id").eq("organization_id", organizationId).eq("phone_number", telefone).maybeSingle()
+    : { data: null };
+  const { data: conversation } = contact
+    ? await admin.from("conversations").select("id").eq("organization_id", organizationId).eq("contact_id", contact.id).eq("channel", "whatsapp").order("last_message_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle()
+    : { data: null };
+  const { data: inserted, error } = await admin.from("call_operational_exceptions").insert({
+    organization_id: organizationId,
+    franchise_id: franchiseId,
+    service_id: serviceId,
+    event_id: eventId,
+    category: excecao.category,
+    severity: excecao.severity,
+    status: "open",
+    contact_id: contact?.id ?? null,
+    conversation_id: conversation?.id ?? null,
+    payload: body,
+  }).select("id").maybeSingle();
+  if (error?.code === "23505") return { exception: excecao.category, handoff: false };
+  if (error || !inserted || !excecao.automaticHandoff || !conversation) return { exception: excecao.category, handoff: false };
+
+  try {
+    const result = await triggerHandoff({
+      conversationId: conversation.id,
+      organizationId,
+      reason: "critical_stage",
+      origem: "mcp_externo",
+      motivoTexto: `evento Call: ${excecao.category}`,
+      declarado: { tentativas: [{ o_que: "processar evento operacional do Call", desfecho: excecao.category }] },
+      metadata: { source: "call_webhook", event_id: eventId, service_id: serviceId, category: excecao.category },
+    });
+    await admin.from("call_operational_exceptions").update({
+      status: result.triggered ? "handoff_requested" : "open",
+      handoff_requested_at: result.triggered ? new Date().toISOString() : null,
+      handoff_result: result,
+      updated_at: new Date().toISOString(),
+    }).eq("id", inserted.id).eq("organization_id", organizationId);
+    return { exception: excecao.category, handoff: result.triggered };
+  } catch (error) {
+    await admin.from("call_operational_exceptions").update({
+      status: "open",
+      handoff_result: { error: error instanceof Error ? error.message.slice(0, 300) : "handoff_failed" },
+      updated_at: new Date().toISOString(),
+    }).eq("id", inserted.id).eq("organization_id", organizationId);
+    return { exception: excecao.category, handoff: false };
+  }
 }
 
 async function enviarAtualizacaoProativa(
@@ -115,11 +231,14 @@ export async function POST(req: NextRequest): Promise<Response> {
     if (error.code === "23505") return Response.json({ accepted: true, duplicate: true });
     return Response.json({ error: "persistence_failed" }, { status: 503 });
   }
+  const operational = organizationId && inserted && Number.isSafeInteger(serviceId) && serviceId > 0
+    ? await processarEventoOperacional(admin, organizationId, eventId, franchiseId, serviceId, body)
+    : { exception: null, handoff: false };
   const proactive = organizationId && inserted
     ? await enviarAtualizacaoProativa(admin, organizationId, inserted.id, eventId, body)
     : { sent: false, reason: "organization_not_configured" };
   if (!proactive.sent && inserted) {
     await admin.from("call_webhook_events").update({ processed_at: new Date().toISOString(), processing_error: proactive.reason ?? "not_sent" }).eq("id", inserted.id);
   }
-  return Response.json({ accepted: true, duplicate: false, id: inserted?.id ?? null, proactive });
+  return Response.json({ accepted: true, duplicate: false, id: inserted?.id ?? null, operational, proactive });
 }
