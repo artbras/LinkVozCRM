@@ -44,8 +44,12 @@ import {
   crmCallCreateService,
   crmCallLookupClient,
   crmCallLookupService,
+  crmCallLookupOperationalEvents,
   crmCallLookupCompany,
   crmCallRequestReturn,
+  crmCallRequestReschedule,
+  crmCallPrepareService,
+  crmCallConfirmService,
 } from "./call";
 import { crmDescribeExternalData, crmQueryExternalData } from "./dados-externos";
 import { crmListPrivacyRequests } from "./privacidade";
@@ -116,11 +120,15 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmSearchProducts,
   crmCallLookupClient,
   crmCallLookupService,
+  crmCallLookupOperationalEvents,
   crmCallLookupCompany,
-  // write — Call (protegidas por mcp:write; não habilitadas no agente publicado atual)
+  // write — Call
   crmCallCreateService,
+  crmCallPrepareService,
+  crmCallConfirmService,
   crmCallCancelService,
   crmCallRequestReturn,
+  crmCallRequestReschedule,
   crmDescribeExternalData,
   crmQueryExternalData,
   crmListPrivacyRequests,

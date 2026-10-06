@@ -78,6 +78,65 @@ const consultarServicoShape = {
   servico_id: z.number().int().positive().describe("ID da corrida no sistema de táxi."),
 };
 
+const consultarEventosOperacionaisShape = {
+  servico_id: z.number().int().positive().describe("ID da corrida no sistema de táxi."),
+  limite: z.number().int().min(1).max(20).optional(),
+};
+
+function normalizarEventoOperacional(payload: Record<string, unknown>) {
+  const raw = typeof payload.mensagem === "string" ? payload.mensagem.trim().toUpperCase() : "";
+  const eta = /^TEMPO=(5|10|15|20)$/.exec(raw)?.[1];
+  if (eta) return { codigo: raw, tipo: "aproximando", eta_minutos: Number(eta), texto: `motorista chegando em aproximadamente ${eta} minutos` };
+  if (raw === "TEMPO=QTR") return { codigo: raw, tipo: "horario_marcado", eta_minutos: null, texto: "motorista previsto para chegar no horário combinado" };
+  const eventos: Record<string, { tipo: string; texto: string }> = {
+    "+10 MINS": { tipo: "atraso", texto: "motorista informou atraso aproximado de 10 minutos" },
+    "MAIS 10MIN": { tipo: "atraso", texto: "motorista informou atraso aproximado de 10 minutos" },
+    PORTA: { tipo: "na_porta", texto: "motorista informou que está na porta" },
+    "SEM CONTATO": { tipo: "sem_contato", texto: "motorista informou que não conseguiu contato com o passageiro" },
+    TRIPULADO: { tipo: "iniciada", texto: "corrida iniciada" },
+    FINALIZADO: { tipo: "finalizada", texto: "corrida finalizada" },
+  };
+  const evento = eventos[raw];
+  return { codigo: raw || null, tipo: evento?.tipo ?? "desconhecido", eta_minutos: null, texto: evento?.texto ?? null };
+}
+
+export const crmCallLookupOperationalEvents: McpToolDefinition<typeof consultarEventosOperacionaisShape> = {
+  name: "crm_call_lookup_operational_events",
+  description: "Consulta os eventos do webhook do Call para uma corrida e retorna a mensagem original com classificação e ETA estruturado.",
+  inputSchema: consultarEventosOperacionaisShape,
+  category: "read",
+  requiresRole: "agent",
+  requiresScope: "mcp:read",
+  handler: async (input, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from("call_webhook_events")
+      .select("event_id,event_type,service_id,payload,received_at,processed_at")
+      .eq("organization_id", ctx.organizationId)
+      .eq("service_id", input.servico_id)
+      .order("received_at", { ascending: false })
+      .limit(input.limite ?? 10);
+    if (error) return { erro: "eventos_indisponiveis", mensagem: "não consegui consultar o acompanhamento operacional agora." };
+    return {
+      corrida_id: input.servico_id,
+      eventos: (data ?? []).map((row) => {
+        const payload = (row.payload ?? {}) as Record<string, unknown>;
+        return {
+          event_id: row.event_id,
+          event_type: row.event_type,
+          recebido_em: row.received_at,
+          processado_em: row.processed_at,
+          mensagem_original: typeof payload.mensagem === "string" ? payload.mensagem : null,
+          operacional: normalizarEventoOperacional(payload),
+          unidade: payload.unidade ?? null,
+          nome_unidade: payload.nm_unidade ?? null,
+          modelo: payload.modelo ?? null,
+          placa: payload.placa ?? null,
+        };
+      }),
+    };
+  },
+};
+
 export const crmCallLookupService: McpToolDefinition<typeof consultarServicoShape> = {
   name: "crm_call_lookup_service",
   description:
@@ -251,5 +310,102 @@ export const crmCallRequestReturn: McpToolDefinition<typeof returnServiceShape> 
     return resultadoEscritaCall(
       await solicitarRetorno({ ...config, serviceId: input.servico_id, message: input.mensagem }),
     );
+  },
+};
+
+const reagendarServicoShape = {
+  servico_id: z.number().int().positive(),
+  nova_data_hora: z.string().trim().min(5).max(30),
+  nova_origem: z.string().trim().max(200).optional(),
+  novo_destino: z.string().trim().max(200).optional(),
+};
+
+export const crmCallRequestReschedule: McpToolDefinition<typeof reagendarServicoShape> = {
+  name: "crm_call_request_reschedule",
+  description:
+    "Registra com a central um pedido de reagendamento. O Call atualmente não expõe uma operação transacional de alteração; esta ferramenta não afirma que a corrida foi alterada e encaminha o pedido para conferência humana.",
+  inputSchema: reagendarServicoShape,
+  category: "write",
+  requiresRole: "ai_operator",
+  requiresScope: "mcp:write",
+  handler: async (input, _ctx) => {
+    const config = configDoCall();
+    if (!config.ok) return { erro: "call_nao_configurado", mensagem: config.mensagem };
+    const partes = [
+      `PEDIDO_REAGENDAMENTO corrida=${input.servico_id}`,
+      `nova_data_hora=${input.nova_data_hora}`,
+      input.nova_origem ? `nova_origem=${input.nova_origem}` : null,
+      input.novo_destino ? `novo_destino=${input.novo_destino}` : null,
+    ].filter(Boolean).join("; ");
+    const resultado = await solicitarRetorno({ ...config, serviceId: input.servico_id, message: partes });
+    if (!resultado.ok) return resultadoEscritaCall(resultado);
+    return {
+      solicitado: true,
+      alteracao_realizada: false,
+      mensagem: "pedido de reagendamento encaminhado para a central; a alteração ainda depende de confirmação humana.",
+    };
+  },
+};
+
+const prepararServicoShape = solicitarServicoShape;
+
+export const crmCallPrepareService: McpToolDefinition<typeof prepararServicoShape> = {
+  name: "crm_call_prepare_service",
+  description: "Registra uma corrida em coleta e devolve um resumo para confirmação. Não cria a corrida no Call.",
+  inputSchema: prepararServicoShape,
+  category: "write",
+  requiresRole: "ai_operator",
+  requiresScope: "mcp:write",
+  handler: async (input, ctx) => {
+    const config = configDoCall();
+    if (!config.ok) return { erro: "call_nao_configurado", mensagem: config.mensagem };
+    const { data, error } = await ctx.supabase.from("call_service_drafts").insert({
+      organization_id: ctx.organizationId,
+      franchise_id: config.franchiseId,
+      service_payload: input,
+      state: "awaiting_confirmation",
+      confirmation_requested_at: new Date().toISOString(),
+    }).select("id,state,service_payload,confirmation_requested_at").single();
+    if (error || !data) return { erro: "rascunho_indisponivel", mensagem: "não consegui preparar a solicitação para confirmação." };
+    return {
+      rascunho_id: data.id,
+      estado: data.state,
+      resumo: input,
+      mensagem: "dados coletados. Apresente o resumo ao passageiro e aguarde confirmação explícita antes de confirmar a criação.",
+    };
+  },
+};
+
+const confirmarServicoShape = { rascunho_id: z.string().uuid(), confirmado: z.literal(true) };
+
+export const crmCallConfirmService: McpToolDefinition<typeof confirmarServicoShape> = {
+  name: "crm_call_confirm_service",
+  description: "Confirma e cria uma solicitação previamente preparada. Só use depois de o passageiro confirmar explicitamente o resumo e nunca reutilize um rascunho já criado.",
+  inputSchema: confirmarServicoShape,
+  category: "write",
+  requiresRole: "ai_operator",
+  requiresScope: "mcp:write",
+  handler: async (input, ctx) => {
+    const { data: draft, error } = await ctx.supabase.from("call_service_drafts")
+      .select("id,state,franchise_id,service_payload,created_service_id")
+      .eq("id", input.rascunho_id).eq("organization_id", ctx.organizationId).maybeSingle();
+    if (error || !draft) return { erro: "rascunho_nao_encontrado", mensagem: "não encontrei a solicitação preparada." };
+    if (draft.state === "created") return { criado: true, id_servico: draft.created_service_id, duplicado: true };
+    if (draft.state !== "awaiting_confirmation") return { erro: "confirmacao_fora_de_ordem", mensagem: "a solicitação não está aguardando confirmação." };
+    const payload = draft.service_payload as Record<string, unknown>;
+    const resultado = await criarServico({
+      baseUrl: env.CALL_AGENT_API_BASE_URL!, franchiseId: draft.franchise_id,
+      nomePassageiro: String(payload.nome_passageiro), telefone: String(payload.telefone),
+      endereco: String(payload.endereco), bairro: String(payload.bairro), cidade: String(payload.cidade),
+      ...(payload.numero ? { numero: String(payload.numero) } : {}),
+      ...(payload.complemento ? { complemento: String(payload.complemento) } : {}),
+      ...(payload.destino ? { destino: String(payload.destino) } : {}),
+      ...(payload.data_servico ? { dataServico: String(payload.data_servico) } : {}),
+      ...(payload.pagamento ? { pagamento: String(payload.pagamento) } : {}),
+    });
+    if (!resultado.ok) return resultadoEscritaCall(resultado);
+    const idServico = Number(resultado.data.id_servico ?? resultado.data.service_id ?? 0) || null;
+    await ctx.supabase.from("call_service_drafts").update({ state: "created", confirmed_at: new Date().toISOString(), created_service_id: idServico }).eq("id", input.rascunho_id).eq("organization_id", ctx.organizationId);
+    return { criado: true, ...(resultado.data as Record<string, unknown>), rascunho_id: input.rascunho_id, aviso: AVISO_DADOS_NAO_CONFIAVEIS };
   },
 };

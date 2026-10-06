@@ -2,8 +2,63 @@ import { createHash } from "node:crypto";
 import type { NextRequest } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendMessageHandler } from "@/app/api/v1/messages/_handler";
 
 export const dynamic = "force-dynamic";
+
+function mensagemOperacional(body: Record<string, unknown>): string | null {
+  const raw = typeof body.mensagem === "string" ? body.mensagem.trim().toUpperCase() : "";
+  const eta = /^TEMPO=(5|10|15|20)$/.exec(raw)?.[1];
+  if (eta) return `O motorista está chegando em aproximadamente ${eta} minutos.`;
+  if (raw === "TEMPO=QTR") return "O motorista está previsto para chegar no horário combinado.";
+  if (raw === "+10 MINS" || raw === "MAIS 10MIN") return "O motorista informou um atraso aproximado de 10 minutos.";
+  if (raw === "PORTA") return "O motorista informou que está na porta do cliente.";
+  if (raw === "SEM CONTATO") return "O motorista informou que não conseguiu contato com você. Verifique se está no local indicado e mantenha o telefone disponível.";
+  if (raw === "TRIPULADO") return "A corrida foi iniciada.";
+  if (raw === "FINALIZADO") return "A corrida foi finalizada.";
+  return null;
+}
+
+async function enviarAtualizacaoProativa(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  eventRowId: string,
+  eventId: string,
+  body: Record<string, unknown>,
+): Promise<{ sent: boolean; reason?: string }> {
+  const texto = mensagemOperacional(body);
+  const phone = typeof body.ps_tel === "string" ? body.ps_tel.replace(/\D/g, "") : "";
+  if (!texto || phone.length < 10) return { sent: false, reason: "unsupported_or_missing_phone" };
+  const { data: contact } = await admin.from("contacts").select("id").eq("organization_id", organizationId).eq("phone_number", phone).maybeSingle();
+  if (!contact) return { sent: false, reason: "contact_not_found" };
+  const { data: conversation } = await admin.from("conversations")
+    .select("id").eq("organization_id", organizationId).eq("contact_id", contact.id).eq("channel", "whatsapp")
+    .order("last_message_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+  if (!conversation) return { sent: false, reason: "conversation_not_found" };
+  try {
+    const message = await sendMessageHandler(
+      admin,
+      {
+        organization_id: organizationId,
+        actor: { type: "ai_agent", id: "call-webhook", role: "manager" },
+        requestId: eventId,
+        internalMessageId: eventId,
+      },
+      {
+        conversation_id: conversation.id,
+        type: "text",
+        body: texto,
+        metadata: { idempotency_key: `call-webhook:${eventId}` },
+      },
+    );
+    await admin.from("call_webhook_events").update({ processed_at: new Date().toISOString(), proactive_message_id: message.id, processing_error: null }).eq("id", eventRowId);
+    return { sent: true };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message.slice(0, 300) : "send_failed";
+    await admin.from("call_webhook_events").update({ processed_at: new Date().toISOString(), processing_error: reason }).eq("id", eventRowId);
+    return { sent: false, reason };
+  }
+}
 
 export async function POST(req: NextRequest): Promise<Response> {
   const raw = await req.text();
@@ -54,13 +109,18 @@ export async function POST(req: NextRequest): Promise<Response> {
       organization_id: organizationId,
       payload: body,
     })
-    .select("id")
+    .select("id,event_id")
     .maybeSingle();
 
   if (error) {
-    // Postgres unique violation means the Call retried a delivery already accepted.
     if (error.code === "23505") return Response.json({ accepted: true, duplicate: true });
     return Response.json({ error: "persistence_failed" }, { status: 503 });
   }
-  return Response.json({ accepted: true, duplicate: false, id: inserted?.id ?? null });
+  const proactive = organizationId && inserted
+    ? await enviarAtualizacaoProativa(admin, organizationId, inserted.id, eventId, body)
+    : { sent: false, reason: "organization_not_configured" };
+  if (!proactive.sent && inserted) {
+    await admin.from("call_webhook_events").update({ processed_at: new Date().toISOString(), processing_error: proactive.reason ?? "not_sent" }).eq("id", inserted.id);
+  }
+  return Response.json({ accepted: true, duplicate: false, id: inserted?.id ?? null, proactive });
 }
