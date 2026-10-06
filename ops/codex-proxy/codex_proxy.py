@@ -143,7 +143,8 @@ def _response_text(response: dict[str, Any]) -> str:
 
 def _response_tool_calls(response: dict[str, Any]) -> list[dict[str, Any]]:
     calls = []
-    for item in response.get("output", []) or []:
+    for raw_item in response.get("output", []) or []:
+        item = raw_item.get("item", raw_item) if isinstance(raw_item, dict) else {}
         if item.get("type") == "function_call":
             calls.append({
                 "id": item.get("call_id") or item.get("id", ""),
@@ -234,13 +235,24 @@ async def chat_completions(request: web.Request):
         text_parts: list[str] = []
         function_calls: dict[str, dict[str, Any]] = {}
         async for event in _events(upstream):
-            if event.get("type") == "response.completed" and isinstance(event.get("response"), dict):
+            event_type = event.get("type")
+            if event_type == "response.output_item.added":
+                item = event.get("item") or {}
+                if item.get("type") == "function_call":
+                    key = str(item.get("call_id") or item.get("id") or "")
+                    function_calls[key] = {"type": "function_call", "call_id": item.get("call_id") or item.get("id", ""), "name": item.get("name", ""), "arguments": item.get("arguments", "")}
+            elif event_type == "response.completed" and isinstance(event.get("response"), dict):
                 completed = event["response"]
-            elif event.get("type") == "response.output_text.delta":
+            elif event_type == "response.output_text.delta":
                 text_parts.append(str(event.get("delta", "")))
-            elif event.get("type") == "response.function_call_arguments.delta":
-                call_id = str(event.get("call_id", ""))
-                function_calls.setdefault(call_id, {"type": "function_call", "call_id": call_id, "arguments": ""})["arguments"] += str(event.get("delta", ""))
+            elif event_type == "response.function_call_arguments.delta":
+                key = str(event.get("item_id") or event.get("call_id") or "")
+                call = function_calls.setdefault(key, {"type": "function_call", "call_id": key, "name": "", "arguments": ""})
+                call["arguments"] += str(event.get("delta", ""))
+            elif event_type == "response.function_call_arguments.done":
+                key = str(event.get("item_id") or event.get("call_id") or "")
+                call = function_calls.setdefault(key, {"type": "function_call", "call_id": key, "name": "", "arguments": ""})
+                call["arguments"] = str(event.get("arguments", call["arguments"]))
         data = completed or {"id": "resp-codex", "output": []}
         if text_parts:
             data["output"] = [{"type": "message", "content": [{"type": "output_text", "text": "".join(text_parts)}]}]
@@ -256,12 +268,20 @@ async def chat_completions(request: web.Request):
     try:
         async for event in _events(upstream):
             event_type = event.get("type", "")
-            delta = ""
+            delta: dict[str, Any] = {}
+            finish_reason = None
             if event_type == "response.output_text.delta":
-                delta = str(event.get("delta", ""))
-            if not delta and event_type != "response.completed":
+                delta["content"] = str(event.get("delta", ""))
+            elif event_type == "response.output_item.added" and (event.get("item") or {}).get("type") == "function_call":
+                item = event["item"]
+                delta["tool_calls"] = [{"index": event.get("output_index", 0), "id": item.get("call_id") or item.get("id", ""), "type": "function", "function": {"name": item.get("name", ""), "arguments": item.get("arguments", "")}}]
+            elif event_type == "response.function_call_arguments.delta":
+                delta["tool_calls"] = [{"index": event.get("output_index", 0), "function": {"arguments": str(event.get("delta", ""))}}]
+            elif event_type == "response.completed":
+                finish_reason = "stop"
+            if not delta and finish_reason is None:
                 continue
-            chunk = {"id": event.get("response_id", "chatcmpl-codex"), "object": "chat.completion.chunk", "created": 0, "model": request_json.get("model", MODEL), "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": "stop" if event_type == "response.completed" else None}]}
+            chunk = {"id": event.get("response_id", "chatcmpl-codex"), "object": "chat.completion.chunk", "created": 0, "model": request_json.get("model", MODEL), "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}]}
             await out.write(("data: " + json.dumps(chunk, ensure_ascii=False) + "\n\n").encode())
         await out.write(b"data: [DONE]\n\n")
     finally:
