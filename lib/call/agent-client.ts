@@ -161,6 +161,22 @@ export async function criarServico(input: SolicitarServicoCallInput) {
   });
 }
 
+export async function consultarServico(input: {
+  baseUrl: string;
+  franchiseId: number;
+  serviceId: number;
+}) {
+  if (!Number.isSafeInteger(input.franchiseId) || input.franchiseId <= 0)
+    return { ok: false as const, code: "INVALID_FRANCHISE_ID" };
+  if (!Number.isSafeInteger(input.serviceId) || input.serviceId <= 0)
+    return { ok: false as const, code: "INVALID_SERVICE_ID" };
+  return postCall<Record<string, unknown>>(input.baseUrl, {
+    acao: "servico",
+    idf: input.franchiseId,
+    id_servico: input.serviceId,
+  });
+}
+
 export async function cancelarServico(input: {
   baseUrl: string;
   franchiseId: number;

@@ -43,6 +43,7 @@ import {
   crmCallCancelService,
   crmCallCreateService,
   crmCallLookupClient,
+  crmCallLookupService,
   crmCallLookupCompany,
   crmCallRequestReturn,
 } from "./call";
@@ -114,6 +115,7 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmListContactOrders,
   crmSearchProducts,
   crmCallLookupClient,
+  crmCallLookupService,
   crmCallLookupCompany,
   // write — Call (protegidas por mcp:write; não habilitadas no agente publicado atual)
   crmCallCreateService,

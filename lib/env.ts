@@ -237,6 +237,8 @@ const schema = z.object({
   // local allowlisted, nunca para uma URL escolhida pela organização.
   CALL_AGENT_API_BASE_URL: z.string().optional().default(""),
   CALL_AGENT_FRANCHISE_ID: z.coerce.number().int().positive().optional(),
+  CALL_AGENT_WEBHOOK_SECRET: z.string().optional().default(""),
+  CALL_AGENT_ORGANIZATION_ID: z.string().uuid().optional(),
 
   // Fusão (Fase 4): DONO ÚNICO dos eventos ai_agent.dispatch_requested.
   // 'engine' (default) = o worker agent-engine é o único consumidor (o cron

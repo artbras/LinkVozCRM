@@ -22,6 +22,15 @@ export const TOOLS_CALL = declararTools([
     pacotes: ["atender"],
   },
   {
+    name: "crm_call_lookup_service",
+    category: "read",
+    rotulo: "Consultar corrida da central de táxi",
+    explicacao: "Consulta status, motorista, veículo, placa e localização disponíveis de uma corrida.",
+    oQueToca: "Acompanhamento de corridas",
+    risco: "seguro",
+    pacotes: ["atender"],
+  },
+  {
     name: "crm_call_create_service",
     category: "write",
     rotulo: "Criar solicitação de corrida",

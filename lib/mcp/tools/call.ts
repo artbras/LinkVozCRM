@@ -4,9 +4,11 @@ import {
   cancelarServico,
   consultarCliente,
   consultarEmpresa,
+  consultarServico,
   criarServico,
   solicitarRetorno,
 } from "@/lib/call/agent-client";
+import type { CallApiResult } from "@/lib/call/agent-client";
 import { env } from "@/lib/env";
 
 import type { McpToolDefinition } from "../types";
@@ -30,7 +32,7 @@ function configDoCall():
 }
 
 function resultadoCall(
-  resultado: Awaited<ReturnType<typeof consultarCliente>>,
+  resultado: CallApiResult<Record<string, unknown>>,
 ): Record<string, unknown> {
   if (resultado.ok) return { ...resultado.data, aviso: AVISO_DADOS_NAO_CONFIAVEIS };
   if (resultado.code === "CLIENT_NOT_FOUND") {
@@ -69,6 +71,29 @@ export const crmCallLookupClient: McpToolDefinition<typeof consultarClienteShape
     const config = configDoCall();
     if (!config.ok) return { erro: "call_nao_configurado", mensagem: config.mensagem };
     return resultadoCall(await consultarCliente({ ...config, phone: input.telefone }));
+  },
+};
+
+const consultarServicoShape = {
+  servico_id: z.number().int().positive().describe("ID da corrida no sistema de táxi."),
+};
+
+export const crmCallLookupService: McpToolDefinition<typeof consultarServicoShape> = {
+  name: "crm_call_lookup_service",
+  description:
+    "Consulta o status atual de uma corrida, incluindo motorista, veículo, placa e localização quando informado pelo sistema de táxi.",
+  inputSchema: consultarServicoShape,
+  category: "read",
+  requiresRole: "agent",
+  requiresScope: "mcp:read",
+  motivoDoVazio: (resultado) => {
+    if (!resultado || typeof resultado !== "object") return null;
+    return (resultado as { erro?: string }).erro ?? null;
+  },
+  handler: async (input, _ctx) => {
+    const config = configDoCall();
+    if (!config.ok) return { erro: "call_nao_configurado", mensagem: config.mensagem };
+    return resultadoCall(await consultarServico({ ...config, serviceId: input.servico_id }));
   },
 };
 
