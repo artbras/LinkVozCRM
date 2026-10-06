@@ -196,7 +196,9 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         "model": request_json.get("model", MODEL),
         "instructions": instructions,
         "input": input_items,
-        "stream": bool(request_json.get("stream", False)),
+        # The Codex cloud endpoint requires Responses streaming even when the
+        # downstream OpenAI-compatible client requested a buffered response.
+        "stream": True,
         "store": False,
     }
     if request_json.get("tools"):
@@ -209,7 +211,30 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         await session.close()
         return web.Response(status=status, body=error, content_type="application/json")
     if not request_json.get("stream"):
-        data = await upstream.json()
+        completed: dict[str, Any] | None = None
+        text_parts: list[str] = []
+        function_calls: dict[str, dict[str, Any]] = {}
+        async for raw in upstream.content:
+            line = raw.decode("utf-8", "ignore")
+            if not line.startswith("data:"):
+                continue
+            raw_data = line[5:].strip()
+            if raw_data == "[DONE]":
+                continue
+            try:
+                event = json.loads(raw_data)
+            except json.JSONDecodeError:
+                continue
+            if event.get("type") == "response.completed" and isinstance(event.get("response"), dict):
+                completed = event["response"]
+            elif event.get("type") == "response.output_text.delta":
+                text_parts.append(str(event.get("delta", "")))
+            elif event.get("type") == "response.function_call_arguments.delta":
+                call_id = str(event.get("call_id", ""))
+                function_calls.setdefault(call_id, {"type": "function_call", "call_id": call_id, "arguments": ""})["arguments"] += str(event.get("delta", ""))
+        data = completed or {"id": "resp-codex", "output": [{"type": "message", "content": [{"type": "output_text", "text": "".join(text_parts)}]}]}
+        if function_calls:
+            data["output"] = data.get("output", []) + list(function_calls.values())
         await session.close()
         return web.json_response(_chat_response(data, request_json), status=status)
 
