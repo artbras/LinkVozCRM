@@ -241,7 +241,11 @@ async def chat_completions(request: web.Request):
             elif event.get("type") == "response.function_call_arguments.delta":
                 call_id = str(event.get("call_id", ""))
                 function_calls.setdefault(call_id, {"type": "function_call", "call_id": call_id, "arguments": ""})["arguments"] += str(event.get("delta", ""))
-        data = completed or {"id": "resp-codex", "output": [{"type": "message", "content": [{"type": "output_text", "text": "".join(text_parts)}]}]}
+        data = completed or {"id": "resp-codex", "output": []}
+        if text_parts:
+            data["output"] = [{"type": "message", "content": [{"type": "output_text", "text": "".join(text_parts)}]}]
+        if not data.get("output"):
+            data["output"] = [{"type": "message", "content": [{"type": "output_text", "text": ""}]}]
         if function_calls:
             data["output"] = data.get("output", []) + list(function_calls.values())
         await session.close()
@@ -255,6 +259,8 @@ async def chat_completions(request: web.Request):
             delta = ""
             if event_type == "response.output_text.delta":
                 delta = str(event.get("delta", ""))
+            if not delta and event_type != "response.completed":
+                continue
             chunk = {"id": event.get("response_id", "chatcmpl-codex"), "object": "chat.completion.chunk", "created": 0, "model": request_json.get("model", MODEL), "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": "stop" if event_type == "response.completed" else None}]}
             await out.write(("data: " + json.dumps(chunk, ensure_ascii=False) + "\n\n").encode())
         await out.write(b"data: [DONE]\n\n")
