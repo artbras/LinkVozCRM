@@ -197,6 +197,7 @@ async def chat_completions(request: web.Request) -> web.StreamResponse:
         "instructions": instructions,
         "input": input_items,
         "stream": bool(request_json.get("stream", False)),
+        "store": False,
     }
     if request_json.get("tools"):
         payload["tools"] = _tools_to_responses(request_json["tools"])
