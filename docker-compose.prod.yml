@@ -35,6 +35,9 @@ services:
     image: ${APP_IMAGE:-ghcr.io/melgarafael/deskcommcrm:stable}
     pull_policy: ${APP_PULL_POLICY:-always}
     restart: unless-stopped
+    # Apache no host usa 127.0.0.1:3100; o bind local mantém o CRM fora da exposição direta.
+    ports:
+      - "127.0.0.1:3100:3000"
     env_file: .env
     depends_on:
       srh:
