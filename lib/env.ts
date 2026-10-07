@@ -239,6 +239,9 @@ const schema = z.object({
   CALL_AGENT_FRANCHISE_ID: z.coerce.number().int().positive().optional(),
   CALL_AGENT_WEBHOOK_SECRET: z.string().optional().default(""),
   CALL_AGENT_ORGANIZATION_ID: z.string().uuid().optional(),
+  // Chave privada do OpenRouteService usada somente no servidor para cálculo de rota.
+  // Nunca é exposta ao agente, ao passageiro, à auditoria ou ao frontend.
+  OPENROUTESERVICE_API_KEY: z.string().optional().default(""),
 
   // Fusão (Fase 4): DONO ÚNICO dos eventos ai_agent.dispatch_requested.
   // 'engine' (default) = o worker agent-engine é o único consumidor (o cron

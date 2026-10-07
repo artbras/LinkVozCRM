@@ -53,6 +53,7 @@ import {
   crmCallConfirmService,
 } from "./call";
 import { crmDescribeExternalData, crmQueryExternalData } from "./dados-externos";
+import { crmConsultaTarifa } from "./tarifa";
 import { crmListPrivacyRequests } from "./privacidade";
 import {
   crmArchiveStage,
@@ -124,6 +125,8 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmCallLookupOperationalEvents,
   crmCallLookupOperationalState,
   crmCallLookupCompany,
+  // read — tarifas
+  crmConsultaTarifa,
   // write — Call
   crmCallCreateService,
   crmCallPrepareService,

@@ -3,6 +3,7 @@
  * Importado por backend (route handlers) e frontend (editor) — não duplicar.
  */
 import { z } from "zod";
+import { tarifaConfigSchema } from "@/lib/tarifa/consulta";
 
 // ---------------------------------------------------------------------------
 // Models permitidos (Vercel AI Gateway)
@@ -136,6 +137,8 @@ export const agentConfigSchema = z.object({
    * então não se liga por migration — se liga na tela do agente.
    */
   aceita_comandos_celular: z.boolean().default(false),
+  /** Tabela tarifária privada do agente, usada pela tool crm_consulta_tarifa. */
+  tarifa: tarifaConfigSchema.optional(),
 });
 export type AgentConfig = z.infer<typeof agentConfigSchema>;
 
