@@ -76,6 +76,7 @@ export function NovoMaterialDialog({ aberto, onFechar, onCriado, podeIndexar }: 
   const [tipo, setTipo] = useState<TipoDeFonteId>("faq");
   const [nome, setNome] = useState("");
   const [conteudo, setConteudo] = useState("");
+  const [promocao, setPromocao] = useState({ descricao: "", inicio: "", fim: "", beneficio: "", pagamento: "", elegibilidade: "", regras: "" });
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
   const inputArquivo = useRef<HTMLInputElement>(null);
@@ -86,6 +87,7 @@ export function NovoMaterialDialog({ aberto, onFechar, onCriado, podeIndexar }: 
   function limpar(): void {
     setNome("");
     setConteudo("");
+    setPromocao({ descricao: "", inicio: "", fim: "", beneficio: "", pagamento: "", elegibilidade: "", regras: "" });
     setArquivo(null);
     if (inputArquivo.current) inputArquivo.current.value = "";
   }
@@ -96,7 +98,14 @@ export function NovoMaterialDialog({ aberto, onFechar, onCriado, podeIndexar }: 
       toast.error(t("Dê um nome ao material — é assim que você o encontra depois."));
       return;
     }
-    if (!arquivo && conteudo.trim().length === 0) {
+    const conteudoPromocao = tipo === "promocoes"
+      ? [`# Promoção: ${nomeLimpo}`, `Descrição: ${promocao.descricao.trim()}`, `Validade: ${promocao.inicio} até ${promocao.fim}`, `Benefício: ${promocao.beneficio.trim()}`, `Forma de pagamento: ${promocao.pagamento.trim() || "não informada"}`, `Elegibilidade: ${promocao.elegibilidade.trim() || "não informada"}`, `Regras: ${promocao.regras.trim() || "não informadas"}`, "Status: ativa"].join("\n")
+      : "";
+    if (tipo === "promocoes" && (!promocao.descricao.trim() || !promocao.inicio || !promocao.fim || !promocao.beneficio.trim())) {
+      toast.error(t("Preencha descrição, validade e benefício da promoção."));
+      return;
+    }
+    if (!arquivo && conteudo.trim().length === 0 && !conteudoPromocao) {
       toast.error(t("Envie um arquivo ou cole o conteúdo."));
       return;
     }
@@ -120,7 +129,7 @@ export function NovoMaterialDialog({ aberto, onFechar, onCriado, podeIndexar }: 
         await apiClient.post("/api/v1/ai/knowledge/sources", {
           source_type: tipo,
           name: nomeLimpo,
-          markdown_blob: conteudo,
+          markdown_blob: conteudoPromocao || conteudo,
         });
       }
 
@@ -219,7 +228,26 @@ export function NovoMaterialDialog({ aberto, onFechar, onCriado, podeIndexar }: 
             </div>
           ) : null}
 
-          {!porRotina && !arquivo ? (
+          {tipo === "promocoes" ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="material-promocao-campos">
+              {([
+                ["descricao", "Descrição", "Ex.: desconto no trecho aeroporto-centro"],
+                ["beneficio", "Benefício ou desconto", "Ex.: 10% de desconto"],
+                ["pagamento", "Forma de pagamento", "Ex.: Pix e cartão"],
+                ["elegibilidade", "Perfil elegível", "Ex.: todos os passageiros"],
+              ] as const).map(([campo, rotulo, placeholder]) => (
+                <div className="space-y-1" key={campo}>
+                  <Label htmlFor={`promocao-${campo}`}>{t(rotulo)}</Label>
+                  <Input id={`promocao-${campo}`} value={promocao[campo]} placeholder={t(placeholder)} onChange={(e) => setPromocao((p) => ({ ...p, [campo]: e.target.value }))} disabled={enviando} />
+                </div>
+              ))}
+              <div className="space-y-1"><Label htmlFor="promocao-inicio">{t("Início da validade")}</Label><Input id="promocao-inicio" type="date" value={promocao.inicio} onChange={(e) => setPromocao((p) => ({ ...p, inicio: e.target.value }))} disabled={enviando} /></div>
+              <div className="space-y-1"><Label htmlFor="promocao-fim">{t("Fim da validade")}</Label><Input id="promocao-fim" type="date" value={promocao.fim} onChange={(e) => setPromocao((p) => ({ ...p, fim: e.target.value }))} disabled={enviando} /></div>
+              <div className="space-y-1 sm:col-span-2"><Label htmlFor="promocao-regras">{t("Regras e restrições")}</Label><Textarea id="promocao-regras" rows={3} value={promocao.regras} onChange={(e) => setPromocao((p) => ({ ...p, regras: e.target.value }))} disabled={enviando} /></div>
+            </div>
+          ) : null}
+
+          {tipo !== "promocoes" && !porRotina && !arquivo ? (
             <div className="space-y-2">
               <Label htmlFor="material-conteudo">
                 {aceitaArquivo(tipo) ? t("…ou cole o texto aqui") : t("Conteúdo")}

@@ -120,6 +120,17 @@ export const ALVO_DE_FUNIL: Record<string, AlvoDeFunil> = {
   crm_confirm_appointment: "sem_funil",
   crm_set_appointment_outcome: "sem_funil",
 
+  // ---- operações do sistema Call: não alteram negócio/funil do CRM ----
+  // O gate de funil protege cards de vendas. Criação, confirmação, cancelamento,
+  // retorno e reagendamento de corrida pertencem ao sistema operacional de táxi;
+  // sua autorização ocorre por RBAC, escopo MCP e confirmação própria do Call.
+  crm_call_create_service: "sem_funil",
+  crm_call_prepare_service: "sem_funil",
+  crm_call_confirm_service: "sem_funil",
+  crm_call_cancel_service: "sem_funil",
+  crm_call_request_return: "sem_funil",
+  crm_call_request_reschedule: "sem_funil",
+
   // ---- não têm funil, e isso é declarado ----
   crm_send_whatsapp_message: "sem_funil",
   // Abre conversa nova (contato pode nem ter negócio ainda) e manda a primeira

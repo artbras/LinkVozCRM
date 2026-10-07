@@ -135,7 +135,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   if (tipo === null) {
     return fail(
       "validation_failed",
-      `Tipo de material desconhecido: "${input.source_type}". Use faq, documento, conversas ou catalogo.`,
+      `Tipo de material desconhecido: "${input.source_type}". Use faq, documento, promocoes, conversas ou catalogo.`,
       422,
       { requestId },
     );
@@ -202,7 +202,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         requestId,
       });
     }
-  } else if (tipo === "documento" && !input.markdown_blob?.trim()) {
+  } else if ((tipo === "documento" || tipo === "promocoes") && !input.markdown_blob?.trim()) {
     return fail(
       "invalid_request",
       "Cole o texto do documento, ou envie o arquivo em /api/v1/ai/knowledge/sources/upload.",
@@ -223,7 +223,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   // como `.md` no mesmo bucket dos arquivos e segue exatamente a mesma rota de
   // extração. Um destino, um caminho, um lugar para consertar.
   let metadata: Record<string, unknown> = { ...(input.source_metadata ?? {}) };
-  if (tipo === "documento" && input.markdown_blob) {
+  if ((tipo === "documento" || tipo === "promocoes") && input.markdown_blob) {
     const blobPath = `${activeOrg.orgId}/${randomUUID()}.md`;
     const { error: upErr } = await admin.storage
       .from(BUCKET_DE_CONHECIMENTO)

@@ -216,7 +216,7 @@ async function pedacosDeFaq(fonte: FonteRow): Promise<Pedaco[]> {
  * nascia, e não havia caminho nenhum que transformasse aquele PDF em trecho —
  * o worker só sabia ler `ai_faq_items`.
  */
-async function pedacosDeDocumento(fonte: FonteRow): Promise<Pedaco[]> {
+async function pedacosDeDocumento(fonte: FonteRow, tipo: "documento" | "promocoes" = "documento"): Promise<Pedaco[]> {
   const meta = (fonte.source_metadata ?? {}) as {
     blob_path?: string;
     filename?: string;
@@ -229,7 +229,7 @@ async function pedacosDeDocumento(fonte: FonteRow): Promise<Pedaco[]> {
   return chunkText(texto, { maxChars: 1600, overlapChars: 200 }).map((c) => ({
     content: c,
     metadata: {
-      source_type: "documento",
+      source_type: tipo,
       arquivo: meta.filename ?? blobPath.split("/").pop() ?? "documento",
       extensao,
     },
@@ -347,6 +347,9 @@ export async function indexarFonte(
         break;
       case "documento":
         pedacos = await pedacosDeDocumento(fonte);
+        break;
+      case "promocoes":
+        pedacos = await pedacosDeDocumento(fonte, "promocoes");
         break;
       case "catalogo":
         pedacos = await pedacosDeCatalogo(fonte, extra.productId);

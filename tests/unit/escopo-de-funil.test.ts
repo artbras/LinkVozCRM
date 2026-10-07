@@ -136,6 +136,17 @@ describe("a chamada de ferramenta", () => {
     expect(lead.permitido, "marcar o card do outro time é escrita no funil dele").toBe(false);
   });
 
+  it("as escritas do Call não são operações de funil", async () => {
+    for (const ferramenta of ["crm_call_prepare_service", "crm_call_confirm_service", "crm_call_create_service"]) {
+      const v = await podeChamarFerramenta({
+        ...base,
+        ferramenta,
+        argumentos: {},
+      });
+      expect(v.permitido, ferramenta).toBe(true);
+    }
+  });
+
   it("enviar mensagem NÃO é escopado por funil — conversar não é mexer em card", async () => {
     const v = await podeChamarFerramenta({
       ...base,

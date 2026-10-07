@@ -35,6 +35,8 @@ export type ComoSePreenche =
    * pessoa que cola a política de troca não quer saber a diferença.
    */
   | "arquivo_ou_texto"
+  /** A pessoa preenche campos estruturados de uma promoção vigente. */
+  | "promocao"
   /** Uma rotina do sistema alimenta sozinha; não há o que colar. */
   | "automatico";
 
@@ -67,6 +69,12 @@ export const TIPOS_DE_FONTE = [
     oQueE:
       "Um texto do seu negócio — política de troca, tabela de preços, manual, contrato. Envie o arquivo (PDF, Markdown, CSV ou texto) ou cole o conteúdo.",
     comoSePreenche: "arquivo_ou_texto",
+  },
+  {
+    id: "promocoes",
+    rotulo: "Promoções",
+    oQueE: "Condições promocionais da cooperativa, com validade, regras e formas de pagamento.",
+    comoSePreenche: "promocao",
   },
   {
     id: "conversas",
@@ -118,6 +126,8 @@ export function canonizarTipoDeFonte(bruto: string): TipoDeFonteId | null {
     case "documento":
     case "policy":
       return "documento";
+    case "promocoes":
+      return "promocoes";
     case "conversas":
     case "conversations":
     case "conversation":
@@ -139,7 +149,7 @@ export function rotuloDoTipo(id: string): string {
 /** O tipo aceita conteúdo digitado/colado pela pessoa? */
 export function aceitaTextoColado(id: string): boolean {
   const c = TIPO_DE_FONTE_POR_ID.get(id)?.comoSePreenche;
-  return c === "texto_colado" || c === "arquivo_ou_texto";
+  return c === "texto_colado" || c === "arquivo_ou_texto" || c === "promocao";
 }
 
 /** O conteúdo colado é uma lista de pergunta/resposta (e não texto corrido)? */
