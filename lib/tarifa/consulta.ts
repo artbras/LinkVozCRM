@@ -192,6 +192,8 @@ export async function consultarTarifa(args: {
   pedagio?: number;
   retorno?: boolean;
   outros?: number;
+  tempo_parada_minutos?: number;
+  regiao?: string;
   config: TarifaConfig;
   orsApiKey: string;
 }) {
@@ -218,6 +220,16 @@ export async function consultarTarifa(args: {
   const quando = args.data_hora ? new Date(args.data_hora) : new Date();
   if (Number.isNaN(quando.getTime()))
     return { erro: "data_hora_invalida", mensagem: "a data e hora informadas são inválidas." };
+  if (
+    args.config.regras.regiao &&
+    args.regiao &&
+    args.config.regras.regiao.toLocaleLowerCase() !== args.regiao.toLocaleLowerCase()
+  ) {
+    return {
+      erro: "regiao_sem_regra",
+      mensagem: "não existe regra tarifária configurada para a região informada.",
+    };
+  }
   const bandeira = escolherBandeira(args.config, quando, args.tipo_veiculo);
   const tabela = bandeira === 2 ? args.config.bandeira_2 : args.config.bandeira_1;
   const km = rota.distancia_m / 1000;
@@ -225,7 +237,7 @@ export async function consultarTarifa(args: {
   const componentes = {
     bandeirada: tabela.bandeirada,
     distancia: km * tabela.valor_km,
-    tempo_parada: 0,
+    tempo_parada: ((args.tempo_parada_minutos ?? 0) / 60) * tabela.hora_parada,
     bagagem: args.bagagem ? args.config.adicionais.bagagem : 0,
     aeroporto: args.aeroporto ? args.config.adicionais.aeroporto : 0,
     pedagio: args.pedagio ?? args.config.adicionais.pedagio,

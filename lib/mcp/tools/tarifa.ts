@@ -29,6 +29,8 @@ const shape = {
   pedagio: z.number().nonnegative().optional(),
   retorno: z.boolean().optional(),
   outros: z.number().nonnegative().optional(),
+  tempo_parada_minutos: z.number().nonnegative().max(1440).optional(),
+  regiao: z.string().trim().max(80).optional(),
 };
 
 export const crmConsultaTarifa: McpToolDefinition<typeof shape> = {
