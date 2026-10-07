@@ -137,6 +137,53 @@ export const crmCallLookupOperationalEvents: McpToolDefinition<typeof consultarE
   },
 };
 
+const consultarEstadoOperacionalShape = {
+  servico_id: z.number().int().positive().describe("ID da corrida no sistema de táxi."),
+};
+
+export const crmCallLookupOperationalState: McpToolDefinition<typeof consultarEstadoOperacionalShape> = {
+  name: "crm_call_lookup_operational_state",
+  description: "Consulta o último estado operacional normalizado e as exceções registradas para uma corrida. Somente retorna dados persistidos pelo webhook do Call; não inventa disponibilidade, motorista ou ETA.",
+  inputSchema: consultarEstadoOperacionalShape,
+  category: "read",
+  requiresRole: "agent",
+  requiresScope: "mcp:read",
+  handler: async (input, ctx) => {
+    const [{ data: state, error: stateError }, { data: exceptions, error: exceptionError }] = await Promise.all([
+      ctx.supabase.from("call_service_operational_state")
+        .select("service_id,status,event_id,event_code,eta_minutes,eta_received_at,unit,unit_name,vehicle_model,plate,payload,updated_at")
+        .eq("organization_id", ctx.organizationId).eq("service_id", input.servico_id).maybeSingle(),
+      ctx.supabase.from("call_operational_exceptions")
+        .select("id,event_id,category,severity,status,contact_id,conversation_id,handoff_requested_at,handoff_result,resolved_at,created_at,updated_at")
+        .eq("organization_id", ctx.organizationId).eq("service_id", input.servico_id)
+        .order("created_at", { ascending: false }).limit(10),
+    ]);
+    if (stateError || exceptionError) return { erro: "estado_indisponivel", mensagem: "não consegui consultar o estado operacional agora." };
+    if (!state) return { erro: "estado_nao_encontrado", mensagem: "ainda não recebi um estado operacional dessa corrida." };
+    const payload = (state.payload ?? {}) as Record<string, unknown>;
+    return {
+      corrida_id: input.servico_id,
+      estado: {
+        status: state.status,
+        codigo_evento: state.event_code,
+        etapa_call: typeof payload.step === "string" ? payload.step : null,
+        eta_minutos: state.eta_minutes,
+        eta_recebido_em: state.eta_received_at,
+        unidade: state.unit,
+        nome_unidade: state.unit_name,
+        modelo: state.vehicle_model,
+        placa: state.plate,
+        motorista: payload.motorista ?? payload.nome_motorista ?? payload.driver_name ?? null,
+        latitude: payload.lat ?? payload.latitude ?? payload.lat_motorista ?? null,
+        longitude: payload.lng ?? payload.longitude ?? payload.lng_motorista ?? null,
+        atualizado_em: state.updated_at,
+      },
+      excecoes: exceptions ?? [],
+      aviso: AVISO_DADOS_NAO_CONFIAVEIS,
+    };
+  },
+};
+
 export const crmCallLookupService: McpToolDefinition<typeof consultarServicoShape> = {
   name: "crm_call_lookup_service",
   description:

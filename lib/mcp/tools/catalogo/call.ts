@@ -38,6 +38,15 @@ export const TOOLS_CALL = declararTools([
     pacotes: ["atender"],
   },
   {
+    name: "crm_call_lookup_operational_state",
+    category: "read",
+    rotulo: "Consultar estado operacional da corrida",
+    explicacao: "Consulta o último estado normalizado, ETA, dados do veículo e exceções registradas para uma corrida.",
+    oQueToca: "Estado e exceções de corridas",
+    risco: "seguro",
+    pacotes: ["atender"],
+  },
+  {
     name: "crm_call_prepare_service",
     category: "write",
     rotulo: "Preparar solicitação de corrida",

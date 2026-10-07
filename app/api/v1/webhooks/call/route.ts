@@ -46,6 +46,7 @@ function excecaoOperacional(body: Record<string, unknown>): OperationalException
 
 function estadoOperacional(body: Record<string, unknown>) {
   const raw = normalizarCodigo(typeof body.mensagem === "string" ? body.mensagem.trim() : "");
+  const step = normalizarCodigo(typeof body.step === "string" ? body.step.trim() : "");
   const eta = /^TEMPO=(5|10|15|20)$/.exec(raw)?.[1];
   const status = eta ? "motorista_a_caminho"
     : raw === "TEMPO=QTR" ? "horario_marcado"
@@ -53,9 +54,24 @@ function estadoOperacional(body: Record<string, unknown>) {
         : raw === "PORTA" ? "motorista_na_porta"
           : raw === "SEM CONTATO" ? "sem_contato"
             : raw === "TRIPULADO" ? "em_andamento"
-              : raw === "FINALIZADO" ? "finalizada"
-                : "evento_recebido";
-  return { status, event_code: raw || null, eta_minutes: eta ? Number(eta) : null };
+              : raw === "FINALIZADO" || raw === "VALOR" ? "finalizada"
+                : raw === "SEM MOTORISTA" || raw === "SEM VEICULO" || raw === "NENHUM MOTORISTA" ? "sem_motorista"
+                  : raw === "QTA UND" || raw === "QTA PS" ? "cancelada_operacionalmente"
+                    : raw === "REJEITAR" ? "despacho_rejeitado"
+                      : raw === "CANDIDATURA" || step === "CANDIDATURA" ? "despacho_em_andamento"
+                        : step === "DESLOCAMENTO" ? "motorista_a_caminho"
+                          : step === "PORTA" ? "motorista_na_porta"
+                            : step === "TRIPULADO" ? "em_andamento"
+                              : "evento_recebido";
+  return {
+    status,
+    event_code: raw || step || null,
+    eta_minutes: eta ? Number(eta) : null,
+    operational_step: step || null,
+    driver: body.motorista ?? body.nome_motorista ?? body.driver_name ?? null,
+    latitude: body.lat ?? body.latitude ?? body.lat_motorista ?? null,
+    longitude: body.lng ?? body.longitude ?? body.lng_motorista ?? null,
+  };
 }
 
 async function processarEventoOperacional(

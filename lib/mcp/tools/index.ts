@@ -45,6 +45,7 @@ import {
   crmCallLookupClient,
   crmCallLookupService,
   crmCallLookupOperationalEvents,
+  crmCallLookupOperationalState,
   crmCallLookupCompany,
   crmCallRequestReturn,
   crmCallRequestReschedule,
@@ -121,6 +122,7 @@ export const allTools: ReadonlyArray<McpToolDefinition> = [
   crmCallLookupClient,
   crmCallLookupService,
   crmCallLookupOperationalEvents,
+  crmCallLookupOperationalState,
   crmCallLookupCompany,
   // write — Call
   crmCallCreateService,
