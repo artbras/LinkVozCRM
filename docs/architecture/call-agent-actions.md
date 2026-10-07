@@ -90,8 +90,107 @@ Erros relevantes: `INVALID_RETURN` e `SERVICE_NOT_FOUND`.
 
 ## Política de exposição ao agente
 
-As cinco tools estão registradas no catálogo e no runtime. As duas leituras exigem `mcp:read` e papel `agent`. As três escritas exigem simultaneamente `mcp:write` e papel `ai_operator`; os valores sensíveis são redigidos da auditoria quando aplicável.
-
-O agente publicado da CoopNorte continua, deliberadamente, com apenas as duas tools de leitura até uma aprovação operacional explícita para habilitar escritas. Registrar uma tool não a habilita em um agente publicado: a allowlist da versão do agente ainda precisa incluir o ID e o token precisa possuir `mcp:write`.
+As tools do Call estão registradas no catálogo e no runtime. As leituras exigem `mcp:read` e papel `agent`. As escritas exigem simultaneamente `mcp:write` e papel `ai_operator`; os valores sensíveis são redigidos da auditoria quando aplicável. A allowlist da versão publicada precisa conter cada ID antes de o agente poder chamá-la.
 
 Nenhuma escrita foi executada durante a implementação ou os testes. Isso evita criar, cancelar ou alterar uma corrida real enquanto a política de produção não estiver aprovada.
+
+## Fase 2 — inventário operacional verificado em 2026-10-06/07
+
+O inventário do checkout efetivamente implantado em `/var/www/call` confirma que a rota `POST /internal/agent` ainda aceita somente:
+
+```text
+cliente, empresa, add_service, cancel_service, return_service
+```
+
+Ações de despacho, reatribuição, retry, localização, embarque e alteração de corrida não estão expostas nessa rota. O módulo `ride-events.js` possui eventos internos para a unidade, mas não é um contrato de agente e não deve ser chamado pelo CRM sem autenticação, escopo e idempotência próprios.
+
+A integração Call → CRM pelo webhook interno já normaliza e persiste:
+
+- `TEMPO=5|10|15|20` e `TEMPO=QTR`;
+- atrasos `+10 MINS` e `MAIS 10MIN`;
+- `CANDIDATURA`, `REJEITAR`, `PORTA`, `TRIPULADO`, `FINALIZADO`, `VALOR`;
+- `QTA UND`, `QTA PS`, `SEM MOTORISTA`, `SEM VEICULO`;
+- `step`, unidade, modelo, placa, ETA e coordenadas quando presentes;
+- exceções, severidade, handoff e deduplicação por `event_id`.
+
+A versão publicada da CoopNorte é a versão 6 e contém a tool `crm_call_lookup_operational_state`. As imagens implantadas são:
+
+```text
+ghcr.io/artbras/deskcommcrm:f6abea50b
+ghcr.io/artbras/deskcomm-worker:f6abea50b
+```
+
+Ambos os containers foram verificados como `healthy`.
+
+## O que ainda falta para concluir a Fase 2
+
+### 1. Corrigir ou publicar a leitura de corrida no Call
+
+`crm_call_lookup_service` já existe no CRM, mas a ação `servico` não está presente no checkout efetivamente implantado do Call. É necessário preparar a alteração no repositório oficial do Call, publicar uma revisão identificada e somente então atualizar a imagem da VPS. Até isso ocorrer, a consulta detalhada direta ao Call permanece bloqueada; o espelho de eventos continua disponível.
+
+### 2. Contrato transacional de despacho
+
+Falta um contrato real para:
+
+- iniciar despacho;
+- consultar tentativas;
+- repetir despacho;
+- parar despacho;
+- registrar aceite ou recusa;
+- reatribuir unidade;
+- reconciliar timeout sem duplicar ação.
+
+Sem esse contrato, nenhuma tool de escrita de despacho deve ser liberada ao agente.
+
+### 3. Localização e sequência completa da corrida
+
+O webhook aceita coordenadas quando o Call as envia, mas ainda falta provar um produtor real e definir contrato para:
+
+- localização periódica;
+- chegada na origem;
+- embarque;
+- corrida em andamento;
+- conclusão;
+- atualização de ETA sem regressão de estado;
+- retenção e privacidade das coordenadas.
+
+### 4. Ocorrências e resolução
+
+A abertura e o escalonamento foram implementados. Ainda falta o ciclo completo de resolução:
+
+- confirmação de recebimento pelo atendente;
+- atribuição de responsável;
+- resolução ou encerramento;
+- reabertura quando um novo evento ocorrer;
+- SLA e auditoria do resultado.
+
+### 5. Scheduler operacional
+
+Faltam os jobs de:
+
+- lembrete de corrida agendada;
+- confirmação próxima do horário;
+- expiração de rascunhos sem confirmação;
+- escalonamento por ausência de resposta;
+- retry controlado de eventos não processados.
+
+### 6. Teste operacional controlado
+
+Ainda falta validar com um contato e uma conversa de teste controlados:
+
+- evento real do Call;
+- mensagem proativa no WhatsApp;
+- ausência de duplicidade;
+- handoff para fila humana;
+- consulta pelo agente publicado;
+- round trip completo do worker, tool e segunda etapa do modelo.
+
+## Critério de conclusão da Fase 2
+
+A Fase 2 só deve ser marcada como concluída quando houver contrato publicado para a leitura de corrida e, no mínimo, um fluxo controlado comprovando o ciclo:
+
+```text
+evento Call → webhook → estado normalizado → tool do agente → resposta proativa ou handoff → auditoria
+```
+
+As escritas operacionais de despacho e reatribuição continuam bloqueadas até existir contrato transacional, autenticação entre serviços, idempotência e rollback.
