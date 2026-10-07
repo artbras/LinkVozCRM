@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/hooks/i18n/useT";
@@ -188,6 +189,57 @@ export function PainelDeTarifas({
           />
           {t("Bandeira 2 em feriados")}
         </label>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="space-y-1">
+          <Label>{t("Região")}</Label>
+          <Input
+            value={config.regras.regiao ?? ""}
+            onChange={(e) =>
+              set({ regras: { ...config.regras, regiao: e.target.value || undefined } })
+            }
+            disabled={disabled || saving}
+            placeholder="Centro, Zona Sul…"
+          />
+        </div>
+        <div className="space-y-1 md:col-span-2">
+          <Label>{t("Tipos de veículo elegíveis para Bandeira 2")}</Label>
+          <Input
+            value={config.regras.tipos_veiculo_bandeira_2.join(", ")}
+            onChange={(e) =>
+              set({
+                regras: {
+                  ...config.regras,
+                  tipos_veiculo_bandeira_2: e.target.value
+                    .split(",")
+                    .map((x) => x.trim())
+                    .filter(Boolean),
+                },
+              })
+            }
+            disabled={disabled || saving}
+            placeholder="Sedan, Executivo"
+          />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label>{t("Feriados (um por linha, AAAA-MM-DD)")}</Label>
+        <Textarea
+          value={config.regras.feriados.join("\n")}
+          onChange={(e) =>
+            set({
+              regras: {
+                ...config.regras,
+                feriados: e.target.value
+                  .split("\n")
+                  .map((x) => x.trim())
+                  .filter(Boolean),
+              },
+            })
+          }
+          disabled={disabled || saving}
+          rows={3}
+        />
       </div>
       <Button type="button" onClick={salvar} disabled={disabled || saving}>
         {saving ? t("Salvando…") : t("Salvar tabela tarifária")}
