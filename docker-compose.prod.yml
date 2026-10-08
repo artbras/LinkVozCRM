@@ -62,7 +62,9 @@ services:
     logging: *default-logging
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    networks: [internal]
+    networks:
+      - internal
+      - supabase_default
 
   # Worker 24/7 do agent-engine (fusão Vendaval) — cérebro do agente SDR.
   worker:
@@ -111,6 +113,7 @@ services:
       WAHA_API_BASE_URL: http://waha:3000
     networks:
       - internal
+      - supabase_default
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8787/healthz"]
       interval: 30s
@@ -235,7 +238,9 @@ services:
       TZ: UTC
       INTERNAL_SECRET: ${INTERNAL_SECRET}
     logging: *default-logging
-    networks: [internal]
+    networks:
+      - internal
+      - supabase_default
 
   # ── Chamada de voz WhatsApp (spec 18) — DESLIGADA POR PADRÃO ──────────────
   #
@@ -439,3 +444,5 @@ volumes:
 networks:
   internal:
     driver: bridge
+  supabase_default:
+    external: true
