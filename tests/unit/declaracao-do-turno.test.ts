@@ -9,6 +9,7 @@ import {
 } from "@/lib/agent-engine/agent/declaracao";
 import {
   CHECKPOINT_INSTRUCTION,
+  fallbackCheckpointContent,
   parseCheckpointText,
 } from "@/lib/agent-engine/agent/inbound-turn";
 import { buildHandoffSummary } from "@/lib/agent-engine/agent/human-handoff";
@@ -84,6 +85,24 @@ describe("declaração do turno — o contrato", () => {
       expect(() =>
         parseCheckpointText('{"rolling_summary":"x","declaracao":{"intencoes":"nao é lista"}}'),
       ).toThrow();
+    });
+
+    it("fallback preserva o último checkpoint quando o fechamento auxiliar vem inválido", () => {
+      expect(
+        fallbackCheckpointContent({
+          commitments: ["confirmar corrida"],
+          objections: [],
+          next_action: "aguardar Call",
+          rolling_summary: "solicitação preparada",
+          declaracao: undefined,
+        }),
+      ).toEqual({
+        commitments: ["confirmar corrida"],
+        objections: [],
+        next_action: "aguardar Call",
+        rolling_summary: "solicitação preparada",
+        declaracao: undefined,
+      });
     });
   });
 

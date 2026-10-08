@@ -11,6 +11,15 @@ export type CallIntent =
   | "general";
 export type CallConfidence = "high" | "medium" | "low";
 
+export type CallActionToolName =
+  | "crm_call_confirm_service"
+  | "crm_call_request_reschedule";
+
+export type RecentConversationMessage = {
+  direction: "inbound" | "outbound";
+  body: string;
+};
+
 export type CallIntentAnalysis = {
   intent: CallIntent;
   requiredTool: CallLookupToolName | null;
@@ -133,4 +142,28 @@ export function analyzeCallIntent(text: string | null | undefined): CallIntentAn
 /** Compatibilidade com o runtime atual: só consultas explícitas exigem lookup cadastral. */
 export function requiredCallLookupTool(text: string | null | undefined): CallLookupToolName | null {
   return analyzeCallIntent(text).requiredTool;
+}
+
+/**
+ * Respostas curtas só são confirmação operacional quando respondem à pergunta
+ * operacional imediatamente anterior. Isso evita que um "Sim" sobre promoção
+ * seja consumido como confirmação de corrida — e impede uma resposta textual
+ * de substituir a execução da ferramenta de escrita.
+ */
+export function requiredCallActionTool(
+  currentInbound: string | null | undefined,
+  messages: readonly RecentConversationMessage[],
+): CallActionToolName | null {
+  const normalized = normalize(currentInbound);
+  if (!/^(sim|ok|isso|pode|confirmo|confirma|pode confirmar)$/.test(normalized)) return null;
+  const previous = [...messages].reverse().find((message) => message.direction === "outbound");
+  const question = normalize(previous?.body);
+  if (!previous?.body.includes("?")) return null;
+  if (question.includes("substitui") || question.includes("reagend")) {
+    return "crm_call_request_reschedule";
+  }
+  if (question.includes("confirma") || question.includes("solicitacao") || question.includes("corrida")) {
+    return "crm_call_confirm_service";
+  }
+  return null;
 }

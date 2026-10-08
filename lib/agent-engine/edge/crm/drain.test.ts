@@ -226,7 +226,9 @@ it('coalescência exclui job em hold (held_run_after) — sessão morta não seq
   });
   await drainTick({ query } as unknown as pg.Pool, debounceKnobs, log);
 
-  const coalescencia = calls.find((s) => s.includes('select id from job_queue'));
+  const coalescencia = calls.find(
+    (s) => s.includes('from job_queue') && s.includes('held_run_after'),
+  );
   expect(coalescencia, 'a query de coalescência deveria ter rodado').toBeTruthy();
   expect(coalescencia).toContain('held_run_after');
   // Sem o job em hold como falso-positivo, o turno segue e enfileira um job novo.

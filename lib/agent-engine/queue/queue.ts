@@ -125,14 +125,21 @@ export interface ClaimOptions {
 
 const CLAIM_SQL = `
   with dedup as (
-    -- etapa (a): no máximo 1 job por lane por lote; lane sem lead = o próprio id
-    select distinct on (coalesce(j.contact_id, j.id)) j.id
+    -- etapa (a): no máximo 1 job por conversa por lote; jobs sem conversa
+    -- continuam usando contato/id como lane de fallback.
+    select distinct on (
+      coalesce(j.payload->>'conversation_id', j.contact_id::text, j.id::text)
+    ) j.id
     from job_queue j
     where j.status = 'pending' and j.run_after <= now()
-      and (j.contact_id is null
-           or not exists (select 1 from job_queue r
-                          where r.contact_id = j.contact_id and r.status = 'running'))
-    order by coalesce(j.contact_id, j.id), j.priority, j.run_after
+      and not exists (
+        select 1 from job_queue r
+        where r.status = 'running'
+          and coalesce(r.payload->>'conversation_id', r.contact_id::text, r.id::text) =
+              coalesce(j.payload->>'conversation_id', j.contact_id::text, j.id::text)
+      )
+    order by coalesce(j.payload->>'conversation_id', j.contact_id::text, j.id::text),
+             j.priority, j.run_after
   ),
   runnable as (
     -- etapa (b): lock sem bloquear ninguém

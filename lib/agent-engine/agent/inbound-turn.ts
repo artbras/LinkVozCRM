@@ -150,7 +150,12 @@ import {
 import { buildMcpTurnTools } from '../edge/crm/mcp-tools';
 import { definicaoNaConexao } from '@/lib/channels/linha-do-espelho';
 import { cancelPendingCronsForLead } from '../cron/scheduler';
-import { requiredCallLookupTool, type CallLookupToolName } from './call-verification';
+import {
+  requiredCallActionTool,
+  requiredCallLookupTool,
+  type CallActionToolName,
+  type CallLookupToolName,
+} from './call-verification';
 import { isDuplicateMessageBody, messageBodyKey } from './duplicate-message';
 import {
   latestInboundSignal,
@@ -1400,6 +1405,23 @@ export function parseCheckpointText(text: string): CheckpointContent {
 }
 
 /**
+ * Fechamento é estado auxiliar: se o modelo devolver JSON inválido depois de
+ * uma resposta já enviada, preserva-se o último checkpoint e conclui-se o job.
+ * O erro fica no log, mas não pode fazer a fila repetir uma mensagem ao cliente.
+ */
+export function fallbackCheckpointContent(
+  previous: Pick<CheckpointContent, 'commitments' | 'objections' | 'next_action' | 'rolling_summary' | 'declaracao'>,
+): CheckpointContent {
+  return {
+    commitments: [...previous.commitments],
+    objections: [...previous.objections],
+    next_action: previous.next_action,
+    rolling_summary: previous.rolling_summary,
+    ...(previous.declaracao === undefined ? {} : { declaracao: previous.declaracao }),
+  };
+}
+
+/**
  * Blocos do ritual de abertura (pt-br: é a língua do agente), compartilhados entre
  * o turno inbound e o follow-up (F3-03) — checkpoint + resumo + estado do funil +
  * contexto curado. Só o CABEÇALHO e o RODAPÉ mudam entre os dois tipos de turno.
@@ -2623,7 +2645,7 @@ async function executarTurnoDoAgente(
   // as tools do modelo rodam em passos anteriores do mesmo loop, o valor já está certo
   // quando o modelo decide mandar a resposta.
   let agendaToolCalledThisTurn = false;
-  let callToolCalledThisTurn: CallLookupToolName | null = null;
+  let callToolCalledThisTurn: (CallLookupToolName | CallActionToolName) | null = null;
   const outcomes: ChannelSendResult[] = [];
   // Citações acumuladas por buscas de conhecimento DESTE turno — anexadas à
   // próxima outbound enviada (shape de lib/ai/citations/types, que a UI já lê).
@@ -3865,14 +3887,17 @@ async function executarTurnoDoAgente(
                 }) as typeof mcpTool.execute,
               };
             } else if (
-              (name === 'crm_call_lookup_client' || name === 'crm_call_lookup_company') &&
+              (name === 'crm_call_lookup_client' ||
+                name === 'crm_call_lookup_company' ||
+                name === 'crm_call_confirm_service' ||
+                name === 'crm_call_request_reschedule') &&
               typeof mcpTool.execute === 'function'
             ) {
               const executeOriginal = mcpTool.execute.bind(mcpTool);
               rawTools[name] = {
                 ...mcpTool,
                 execute: (async (...args: Parameters<typeof executeOriginal>) => {
-                  callToolCalledThisTurn = name as CallLookupToolName;
+                  callToolCalledThisTurn = name as CallLookupToolName | CallActionToolName;
                   runLog.info('ferramenta Call executada', {
                     tool_name: name,
                     comprovacao: 'tool_execute',
@@ -4146,7 +4171,9 @@ async function executarTurnoDoAgente(
     // este corpo inteiro. Escoltar aqui deixaria de fora as chamadas de modelo dos
     // auxiliares (`classifyStage`, `maybeCompact`), que rodam ANTES desta e por
     // isso são as que estouram primeiro.
-    const requiredCallTool = requiredCallLookupTool(currentInboundText);
+    const requiredCallTool =
+      requiredCallLookupTool(currentInboundText) ??
+      requiredCallActionTool(currentInboundText, effectiveContext.messages);
     if (requiredCallTool !== null) {
       if (!(requiredCallTool in tools)) {
         runLog.error('consulta Call obrigatória indisponível — turno recusado', {
@@ -4354,12 +4381,27 @@ async function executarTurnoDoAgente(
       },
       { registry: deps.registry, log: runLog },
     );
-    const content = parseCheckpointText(
-      closing.result.text.replace(
-        /https:\/\/meet\.google\.com\/[a-zA-Z0-9-]+/g,
-        '[link da reunião disponível na Agenda]',
-      ),
-    );
+    let content: CheckpointContent;
+    try {
+      content = parseCheckpointText(
+        closing.result.text.replace(
+          /https:\/\/meet\.google\.com\/[a-zA-Z0-9-]+/g,
+          '[link da reunião disponível na Agenda]',
+        ),
+      );
+    } catch (err) {
+      runLog.warn('checkpoint inválido — preservando o anterior sem repetir o turno', {
+        motivo: err instanceof Error ? err.message : 'erro_de_validacao',
+        comprovacao: 'fallback_checkpoint',
+      });
+      content = fallbackCheckpointContent({
+        commitments: effectivePrevious?.commitments ?? [],
+        objections: effectivePrevious?.objections ?? [],
+        next_action: effectivePrevious?.next_action ?? null,
+        rolling_summary: effectivePrevious?.rolling_summary ?? '',
+        declaracao: effectivePrevious?.declaracao ?? undefined,
+      });
+    }
 
     if (preview) {
       preview.result.checkpoint = content;
@@ -4780,6 +4822,7 @@ export function createInboundTurnHandler(deps: InboundTurnDeps) {
       contactId: job.contact_id,
       conversationId: payload.conversation_id,
       jobId: job.id,
+      inboundMessageId: payload.inbound_message_id,
     };
     if (await ultimaInboundJaRespondida(pool, alvo)) {
       deps.log.info('turno pulado — outro turno já viu e respondeu a última mensagem do cliente', {

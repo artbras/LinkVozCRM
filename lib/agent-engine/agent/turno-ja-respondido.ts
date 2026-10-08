@@ -40,11 +40,14 @@ export interface AlvoDoTurno {
   contactId: string;
   conversationId: string;
   jobId: string;
+  inboundMessageId: string;
 }
 
 /**
- * Anota no job a inbound mais nova visível AGORA — chamar antes de o turno ler
- * a conversa. Um statement: o `||` do jsonb não pisa em chave alheia do payload
+ * Anota no job a inbound que disparou ESTE job — chamar antes de o turno ler
+ * a conversa. Nunca consulta a mensagem mais nova: uma mensagem posterior pode
+ * chegar enquanto o job está rodando e não pode ser marcada como vista por ele.
+ * Um statement: o `||` do jsonb não pisa em chave alheia do payload
  * (`held_run_after` do session-watchdog, por exemplo).
  */
 export async function anotarUltimaInboundVista(db: Queryable, alvo: AlvoDoTurno): Promise<void> {
@@ -52,10 +55,11 @@ export async function anotarUltimaInboundVista(db: Queryable, alvo: AlvoDoTurno)
     `update job_queue
         set payload = payload || jsonb_build_object(
           'ultima_inbound_vista_em',
-          (select max(m.created_at) from messages m
-            where m.organization_id = $1 and m.conversation_id = $2 and m.direction = 'inbound'))
-      where organization_id = $1 and id = $3`,
-    [alvo.organizationId, alvo.conversationId, alvo.jobId],
+          (select m.created_at from messages m
+            where m.organization_id = $1 and m.conversation_id = $2
+              and m.direction = 'inbound' and m.id = $3))
+      where organization_id = $1 and id = $4`,
+    [alvo.organizationId, alvo.conversationId, alvo.inboundMessageId, alvo.jobId],
   );
 }
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { analyzeCallIntent, requiredCallLookupTool } from "./call-verification";
+import {
+  analyzeCallIntent,
+  requiredCallActionTool,
+  requiredCallLookupTool,
+} from "./call-verification";
 
 describe("analyzeCallIntent", () => {
   it("requires client lookup for cadastro questions", () => {
@@ -61,5 +65,29 @@ describe("requiredCallLookupTool", () => {
 
   it("does not force Call for ordinary conversation", () => {
     expect(requiredCallLookupTool("Olá, tudo bem?")).toBeNull();
+  });
+});
+
+describe("requiredCallActionTool", () => {
+  it("exige confirmação do Call para um 'Sim' após o resumo da corrida", () => {
+    expect(
+      requiredCallActionTool("Sim", [
+        { direction: "outbound", body: "Confirma a solicitação?" },
+      ]),
+    ).toBe("crm_call_confirm_service");
+  });
+
+  it("exige reagendamento, não cancelamento+criação, para confirmação de substituição", () => {
+    expect(
+      requiredCallActionTool("Sim", [
+        { direction: "outbound", body: "Essa nova corrida substitui a solicitação anterior?" },
+      ]),
+    ).toBe("crm_call_request_reschedule");
+  });
+
+  it("não força ação para um 'Sim' sem pergunta operacional pendente", () => {
+    expect(
+      requiredCallActionTool("Sim", [{ direction: "outbound", body: "Tudo certo por aqui." }]),
+    ).toBeNull();
   });
 });
