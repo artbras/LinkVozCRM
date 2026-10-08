@@ -12,16 +12,8 @@ Key facts:
 - Stack: Next.js 16, React 19, TypeScript, Supabase (Postgres + Auth + Realtime + Storage), Vercel AI SDK, WAHA
 - License: MIT. Fully self-hosted; your data stays on your VPS.
 
-## Docs
+## Public documentation
 
-- [README (Portuguese)](https://github.com/melgarafael/DeskcommCRM/blob/main/README.md): visão geral, quickstart, stack
-- [README (English)](https://github.com/melgarafael/DeskcommCRM/blob/main/README.en.md): project overview, quickstart, stack
-- [README (Spanish)](https://github.com/melgarafael/DeskcommCRM/blob/main/README.es.md): visión general en español
-- [Vision & positioning](https://github.com/melgarafael/DeskcommCRM/blob/main/VISION.md): what the project believes about self-improving AI agents
-- [Architecture](https://github.com/melgarafael/DeskcommCRM/blob/main/ARCHITECTURE.md): one-page architecture
-- [Setup guide](https://github.com/melgarafael/DeskcommCRM/blob/main/docs/SETUP.md): step-by-step setup of every integration
-- [Self-host on a VPS](https://github.com/melgarafael/DeskcommCRM/blob/main/docs/deploy-selfhost/README.md): docker compose deploy on any VPS
-
-## Repository
-
-- [GitHub](https://github.com/melgarafael/DeskcommCRM): source code, issues, discussions
+This installation exposes only its configured organization and operational
+documentation. Internal repository names, image names and implementation
+identifiers are not part of the public product description.

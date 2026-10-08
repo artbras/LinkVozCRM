@@ -73,15 +73,14 @@ describe("marcaEhADoProduto", () => {
 });
 
 describe("o desenho na barra lateral", () => {
-  it("aberta e sem marca própria, mostra o logotipo do produto (SVG, não <img>)", () => {
+  it("aberta e sem marca própria, mostra o nome resolvido sem arte com marca fixa", () => {
     renderSidebar(PADRAO, false);
     const logotipo = screen.getByRole("img", { name: DEFAULT_APP_NAME });
-    expect(logotipo.tagName.toLowerCase()).toBe("svg");
+    expect(logotipo.tagName.toLowerCase()).toBe("div");
     // O e2e `marca-logo.spec.ts` lê "barra sem <img>" como "sem logo do
     // revendedor"; um <img> do produto aqui faria a spec medir a coisa errada.
     expect(document.querySelector("img")).toBeNull();
-    // Nem o nome em texto: o logotipo já o escreve.
-    expect(screen.queryByText(DEFAULT_APP_NAME)).toBeNull();
+    expect(screen.getByText(DEFAULT_APP_NAME)).toBeTruthy();
   });
 
   it("recolhida, mostra só o símbolo — e não a inicial em texto", () => {

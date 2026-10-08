@@ -1,4 +1,4 @@
-import { LOGOTIPO, SIMBOLO } from "@/lib/branding/desenho";
+import { SIMBOLO } from "@/lib/branding/desenho";
 import { cn } from "@/lib/utils";
 
 /**
@@ -62,28 +62,12 @@ export function SimboloDoProduto({ nome, className, decorativo = false }: Props)
   );
 }
 
-/** Símbolo + nome — para a barra aberta e a fachada de entrada. */
+/** Símbolo + nome resolvido em runtime — nunca usa um nome gravado na arte. */
 export function LogotipoDoProduto({ nome, className, decorativo = false }: Props) {
   return (
-    <svg
-      viewBox={LOGOTIPO.viewBox}
-      className={cn("shrink-0", className)}
-      {...acessibilidade(nome, decorativo)}
-    >
-      <g className={SIMBOLO_CLARO_ESCURO} transform={LOGOTIPO.simbolo.transform}>
-        <path d={LOGOTIPO.simbolo.d} />
-        <rect {...LOGOTIPO.simbolo.modulo} />
-      </g>
-      <g className={NOME_CLARO_ESCURO}>
-        {LOGOTIPO.nome.map((g) => (
-          <path key={g.transform} transform={g.transform} d={g.d} />
-        ))}
-      </g>
-      <g className={SUFIXO_CLARO_ESCURO}>
-        {LOGOTIPO.sufixo.map((g) => (
-          <path key={g.transform} transform={g.transform} d={g.d} />
-        ))}
-      </g>
-    </svg>
+    <div className={cn("flex items-center gap-2", className)} {...acessibilidade(nome, decorativo)}>
+      <SimboloDoProduto nome={nome} decorativo />
+      <span className="font-semibold tracking-tight">{nome}</span>
+    </div>
   );
 }
