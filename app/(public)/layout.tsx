@@ -105,14 +105,16 @@ export default async function PublicLayout({ children }: { children: React.React
             </div>
           ) : marcaEhADoProduto({ name: marca.nome, logoUrl: null }) ? (
             <div className="flex justify-center">
-              {/* Marca padrão da instalação: arquivo fornecido pelo operador. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                data-testid="logo-da-fachada"
-                src="/logo-2.png"
-                alt={marca.nome}
-                className="h-20 w-20 object-contain"
-              />
+              {/* Logo transparente fornecido pelo operador; o fundo escuro preserva o contraste. */}
+              <div className="rounded-md bg-[#506d48] px-4 py-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  data-testid="logo-da-fachada"
+                  src="/logo-2.png"
+                  alt={marca.nome}
+                  className="h-16 w-auto max-w-[18rem] object-contain"
+                />
+              </div>
             </div>
           ) : null}
           {children}
