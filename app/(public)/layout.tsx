@@ -1,4 +1,3 @@
-import { LogotipoDoProduto } from "@/components/branding/MarcaDoProduto";
 import { marcaEhADoProduto } from "@/lib/branding";
 import { marcaDaSaida } from "@/lib/branding/saida";
 import { createClient } from "@/lib/supabase/server";
@@ -106,7 +105,14 @@ export default async function PublicLayout({ children }: { children: React.React
             </div>
           ) : marcaEhADoProduto({ name: marca.nome, logoUrl: null }) ? (
             <div className="flex justify-center">
-              <LogotipoDoProduto nome={marca.nome} className="h-12 w-auto" />
+              {/* Marca padrão da instalação: arquivo fornecido pelo operador. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                data-testid="logo-da-fachada"
+                src="/logo-2.png"
+                alt={marca.nome}
+                className="h-20 w-20 object-contain"
+              />
             </div>
           ) : null}
           {children}
