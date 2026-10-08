@@ -40,7 +40,8 @@ export interface AlvoDoTurno {
   contactId: string;
   conversationId: string;
   jobId: string;
-  inboundMessageId: string;
+  /** Obrigatório no inbound_turn; opcional só para callers legados/testes antigos. */
+  inboundMessageId?: string;
 }
 
 /**
@@ -51,15 +52,21 @@ export interface AlvoDoTurno {
  * (`held_run_after` do session-watchdog, por exemplo).
  */
 export async function anotarUltimaInboundVista(db: Queryable, alvo: AlvoDoTurno): Promise<void> {
+  const inboundFilter = alvo.inboundMessageId
+    ? 'and m.id = $3'
+    : 'and m.created_at = (select max(mx.created_at) from messages mx where mx.organization_id = $1 and mx.conversation_id = $2 and mx.direction = \'inbound\')';
+  const inboundParams = alvo.inboundMessageId
+    ? [alvo.organizationId, alvo.conversationId, alvo.inboundMessageId, alvo.jobId]
+    : [alvo.organizationId, alvo.conversationId, alvo.jobId];
   await db.query(
     `update job_queue
         set payload = payload || jsonb_build_object(
           'ultima_inbound_vista_em',
           (select m.created_at from messages m
             where m.organization_id = $1 and m.conversation_id = $2
-              and m.direction = 'inbound' and m.id = $3))
-      where organization_id = $1 and id = $4`,
-    [alvo.organizationId, alvo.conversationId, alvo.inboundMessageId, alvo.jobId],
+              and m.direction = 'inbound' ${inboundFilter}))
+      where organization_id = $1 and id = $${alvo.inboundMessageId ? 4 : 3}`,
+    inboundParams,
   );
 }
 

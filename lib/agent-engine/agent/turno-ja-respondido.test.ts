@@ -21,6 +21,6 @@ describe('anotarUltimaInboundVista', () => {
       expect.stringContaining('m.id = $3'),
       ['org', 'conversation', 'inbound-do-job', 'job'],
     );
-    expect(query.mock.calls[0][0]).not.toContain('max(m.created_at)');
+    expect(query.mock.calls[0]![0]).not.toContain('max(m.created_at)');
   });
 });

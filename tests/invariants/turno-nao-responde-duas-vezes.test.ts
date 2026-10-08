@@ -327,16 +327,16 @@ describe("a régua: outro turno já viu e respondeu a última mensagem do client
     expect(await m.regua.ultimaInboundJaRespondida(pool, alvo(crypto.randomUUID()))).toBe(false);
   });
 
-  it("a anotação grava a inbound mais nova e não apaga outra chave do payload", async () => {
+  it("a anotação grava o inbound do job e não apaga outra chave do payload", async () => {
     await inbound("Sim", T("02:39"));
-    await inbound("365,00 2x na semana", T("04:04"));
+    const inboundDoJob = await inbound("365,00 2x na semana", T("04:04"));
     await inbound("de outra conversa", T("04:30"), OUTRA_CONV);
     const jobId = await turnoTerminado({ vistoAte: null });
     await pool.query(
       `update job_queue set payload = payload || '{"held_run_after":"x"}' where id = $1`,
       [jobId],
     );
-    await m.regua.anotarUltimaInboundVista(pool, alvo(jobId));
+    await m.regua.anotarUltimaInboundVista(pool, { ...alvo(jobId), inboundMessageId: inboundDoJob });
     const { rows } = await pool.query<{ visto: string; held: string | null; conv: string | null }>(
       `select (payload->>'ultima_inbound_vista_em')::timestamptz = $2::timestamptz as visto,
               payload->>'held_run_after' as held, payload->>'conversation_id' as conv
