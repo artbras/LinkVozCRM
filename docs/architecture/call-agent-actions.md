@@ -92,6 +92,8 @@ Erros relevantes: `INVALID_RETURN` e `SERVICE_NOT_FOUND`.
 
 As tools do Call estão registradas no catálogo e no runtime. As leituras exigem `mcp:read` e papel `agent`. As escritas exigem simultaneamente `mcp:write` e papel `ai_operator`; os valores sensíveis são redigidos da auditoria quando aplicável. A allowlist da versão publicada precisa conter cada ID antes de o agente poder chamá-la.
 
+No seletor visual, essas capacidades pertencem ao pacote dedicado `operar_corridas` (“Operar corridas”), separado de `atender` para que a soma respeite o teto por agente. O pacote só ativa automaticamente ações não críticas; confirmar, cancelar e reagendar continuam exigindo ativação individual. Essa organização da interface não altera permissões, allowlist nem contrato da API Call.
+
 Nenhuma escrita foi executada durante a implementação ou os testes. Isso evita criar, cancelar ou alterar uma corrida real enquanto a política de produção não estiver aprovada.
 
 ## Fase 2 — inventário operacional verificado em 2026-10-06/07
@@ -112,6 +114,12 @@ A integração Call → CRM pelo webhook interno já normaliza e persiste:
 - `QTA UND`, `QTA PS`, `SEM MOTORISTA`, `SEM VEICULO`;
 - `step`, unidade, modelo, placa, ETA e coordenadas quando presentes;
 - exceções, severidade, handoff e deduplicação por `event_id`.
+
+### Redação e retenção dos dados Call
+
+A migration 0420 faz a transição de anonimização do contato limpar `payload` e `handoff_result` das exceções vinculadas, além de remover os vínculos com contato e conversa. Preserva `service_id`, `event_id`, categoria, severidade, estado e timestamps como metadados operacionais mínimos. O marcador `pii_redacted_at` impede que inserções ou atualizações posteriores reintroduzam dados livres ou vínculos nessas exceções. A sincronização usa um advisory lock não bloqueante nas escritas de exceção e lock transacional na anonimização, evitando ciclo de deadlock sem deixar PII em gravações concorrentes. O teste `tests/invariants/call-operational-exceptions-redact.test.ts` verifica redação, proteção contra reintrodução, concorrência de update/insert e que outro contato permanece intocado.
+
+`call_webhook_events` e `call_service_drafts` não possuem vínculo com contato; esta cascata não redige seus payloads. A retenção e a minimização desses dados ainda precisam de política própria antes de declarar cobertura LGPD completa para toda a integração Call.
 
 A versão publicada da CoopNorte é a versão 13 e contém as tools `crm_call_lookup_service` e `crm_call_lookup_operational_state`. Em 2026-10-09, os containers `crm-app-1` e `crm-worker-1` estavam saudáveis e usavam `ghcr.io/artbras/deskcommcrm:main` e `ghcr.io/artbras/deskcomm-worker:main`, ambos com revisão OCI `821fc15de504d681f3ab21a66564a689b3a742a7`.
 

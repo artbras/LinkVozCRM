@@ -227,6 +227,11 @@ const DECISOES: Record<string, Decisao> = {
     caminho: "gatilho",
     razao: "0391: resumo corrido, compromissos, objeções, próxima ação e declaração do turno são texto de modelo sobre a pessoa — redigidos pela virada, que é o caminho que os DOIS compartilham.",
   },
+  call_operational_exceptions: {
+    decidida: "redigir",
+    caminho: "gatilho",
+    razao: "A virada de is_anonymized apaga payload e handoff_result, desvincula contato e conversa, mas preserva serviço, evento, categoria, severidade, status e timestamps operacionais.",
+  },
   webhook_lead_captures: {
     decidida: "redigir",
     caminho: "gatilho",

@@ -9,7 +9,7 @@ export const TOOLS_CALL = declararTools([
       "Consulta o cadastro e o histórico de solicitações pelo telefone no sistema operacional da central, sem alterar nenhum dado.",
     oQueToca: "Cadastro da central de táxi",
     risco: "seguro",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_call_lookup_company",
@@ -19,7 +19,7 @@ export const TOOLS_CALL = declararTools([
       "Consulta uma empresa e seus centros de custo pelo identificador da central, sem alterar dados operacionais.",
     oQueToca: "Empresas da central de táxi",
     risco: "seguro",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_call_lookup_service",
@@ -29,17 +29,17 @@ export const TOOLS_CALL = declararTools([
       "Consulta status, motorista, veículo, placa e localização disponíveis de uma corrida.",
     oQueToca: "Acompanhamento de corridas",
     risco: "seguro",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_call_lookup_operational_events",
     category: "read",
     rotulo: "Consultar eventos operacionais da corrida",
     explicacao:
-      "Consulta eventos do webhook do Call, incluindo mensagem original e ETA normalizado.",
+      "Consulta os eventos recebidos sobre a corrida, incluindo a mensagem original e a previsão de chegada.",
     oQueToca: "Acompanhamento operacional",
     risco: "seguro",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_call_lookup_operational_state",
@@ -49,7 +49,7 @@ export const TOOLS_CALL = declararTools([
       "Consulta o último estado normalizado, ETA, dados do veículo e exceções registradas para uma corrida.",
     oQueToca: "Estado e exceções de corridas",
     risco: "seguro",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_call_prepare_service",
@@ -58,7 +58,7 @@ export const TOOLS_CALL = declararTools([
     explicacao: "Guarda os dados coletados e produz o resumo antes da confirmação do passageiro.",
     oQueToca: "Coleta estruturada de corrida",
     risco: "atencao",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_call_confirm_service",
@@ -67,7 +67,7 @@ export const TOOLS_CALL = declararTools([
     explicacao: "Cria a corrida somente a partir de um rascunho que aguarda confirmação explícita.",
     oQueToca: "Criação de corridas",
     risco: "critico",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_call_create_service",
@@ -76,7 +76,7 @@ export const TOOLS_CALL = declararTools([
     explicacao: "Compatibilidade legada; novos atendimentos devem usar preparar e confirmar.",
     oQueToca: "Corridas e cadastro da central",
     risco: "atencao",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_call_cancel_service",
@@ -86,7 +86,7 @@ export const TOOLS_CALL = declararTools([
       "Cancela uma solicitação existente e libera a operação; a alteração não deve ser feita sem pedido explícito.",
     oQueToca: "Corridas da central de táxi",
     risco: "critico",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_call_request_return",
@@ -96,7 +96,7 @@ export const TOOLS_CALL = declararTools([
       "Registra uma mensagem de retorno para a equipe ou unidade vinculada à solicitação de corrida.",
     oQueToca: "Retornos operacionais da central",
     risco: "atencao",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_call_request_reschedule",
@@ -106,7 +106,7 @@ export const TOOLS_CALL = declararTools([
       "Encaminha data, horário, origem ou destino novos para a central; não afirma alteração automática.",
     oQueToca: "Reagendamento de corridas",
     risco: "critico",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
   {
     name: "crm_consulta_tarifa",
@@ -116,6 +116,6 @@ export const TOOLS_CALL = declararTools([
       "Calcula uma estimativa a partir da origem, destino, rota, bandeira e adicionais configurados pelo administrador.",
     oQueToca: "Tarifas e estimativas de corridas",
     risco: "seguro",
-    pacotes: ["atender"],
+    pacotes: ["operar_corridas"],
   },
 ]);

@@ -410,6 +410,10 @@ export const DICIONARIO: Traducoes = {
   "O agente consulta o que a empresa já sabe, aprende com os atendimentos e sugere melhorias para você aprovar.": {
     es: "El agente consulta lo que la empresa ya sabe, aprende de cada atención y sugiere mejoras para que las apruebes.",
   },
+  "Operar corridas": { es: "Operar viajes" },
+  "O agente consulta tarifas e corridas e prepara solicitações para a central; ações críticas exigem ativação individual.": {
+    es: "El agente consulta tarifas y viajes y prepara solicitudes para la central; las acciones críticas requieren activación individual.",
+  },
   // vocabulario.ts (followups) — ESPERA_PELA_RESPOSTA.ajuda era string pronta
   // em português; virou função composta com t() (ver lib/followup/vocabulario.ts).
   "Se o contato não responder dentro desse tempo, o fluxo segue sozinho pelo caminho": {

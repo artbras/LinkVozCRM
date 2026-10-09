@@ -172,6 +172,20 @@ describe("o catálogo real — a fixture prova a função, isto prova o produto"
     expect(ligarPacote([], TOOL_CATALOG, "atender")).not.toContain(alvo);
   });
 
+  it("as capacidades da central ficam no pacote próprio de corridas", () => {
+    const pacoteCorridas = PACOTES.find((p) => p.id === "operar_corridas");
+    expect(pacoteCorridas, "o pacote Operar corridas deve estar disponível").toBeDefined();
+
+    const ferramentasCall = TOOL_CATALOG.filter(
+      (t) => t.name.startsWith("crm_call_") || t.name === "crm_consulta_tarifa",
+    );
+    expect(ferramentasCall.length).toBeGreaterThan(0);
+    for (const ferramenta of ferramentasCall) {
+      expect(ferramenta.pacotes, ferramenta.name).toContain(pacoteCorridas!.id);
+      expect(ferramenta.pacotes, ferramenta.name).not.toContain("atender");
+    }
+  });
+
   it("nenhum pacote real estoura o teto sozinho", () => {
     // Se um pacote sozinho não couber, o caminho padrão da tela fica impossível
     // — o humano liga o card e leva um erro que não sabe resolver.
