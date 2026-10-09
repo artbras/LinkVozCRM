@@ -64,7 +64,13 @@ const LOGIN_DO_APP = "deskcommcrm-release[bot]";
 const REPO_DE_CIMA = "melgarafael/DeskcommCRM";
 
 /** Uma linha no formato que o `--jq` da guarda produz: cinco campos por TAB. */
-function linhaDaApi(login: string, tipo: string, ref: string, repo: string, numero: number): string {
+function linhaDaApi(
+  login: string,
+  tipo: string,
+  ref: string,
+  repo: string,
+  numero: number,
+): string {
   return [login, tipo, ref, repo, String(numero)].join("\t");
 }
 
@@ -92,7 +98,10 @@ function bashDaGuarda(): string {
   const run = yml.indexOf("run: |", inicio);
   expect(run, "o passo da guarda não tem bloco run").toBeGreaterThan(-1);
 
-  const linhas = yml.slice(run + "run: |".length).split("\n").slice(1);
+  const linhas = yml
+    .slice(run + "run: |".length)
+    .split("\n")
+    .slice(1);
   const corpo: string[] = [];
   for (const l of linhas) {
     // O bloco acaba na primeira linha não-vazia com indentação menor que a dele.
@@ -118,7 +127,12 @@ function montarStub(dir: string) {
   const caminho = join(dir, "gh");
   writeFileSync(
     caminho,
-    ['#!/usr/bin/env bash', '[ -n "${GH_RESPOSTA}" ] && printf \'%s\\n\' "${GH_RESPOSTA}"', "exit 0", ""].join("\n"),
+    [
+      "#!/usr/bin/env bash",
+      '[ -n "${GH_RESPOSTA}" ] && printf \'%s\\n\' "${GH_RESPOSTA}"',
+      "exit 0",
+      "",
+    ].join("\n"),
   );
   chmodSync(caminho, 0o755);
 }
@@ -175,8 +189,10 @@ function decisaoPara(sha: string, respostaDaApi: string = RESPOSTA_DO_APP): stri
     .replace(/\bHEAD\b/g, sha);
 
   // A substituição que não acontece tem de gritar, não sumir.
-  expect(script, "a linha `versao=$(...)` não foi substituída — o script rodaria o cortar-release de verdade")
-    .not.toMatch(/cortar-release\.ts/);
+  expect(
+    script,
+    "a linha `versao=$(...)` não foi substituída — o script rodaria o cortar-release de verdade",
+  ).not.toMatch(/cortar-release\.ts/);
 
   // ⚠️ `GITHUB_OUTPUT` vai para um ARQUIVO, não para `/dev/stdout`.
   //
@@ -237,7 +253,10 @@ function decisaoPara(sha: string, respostaDaApi: string = RESPOSTA_DO_APP): stri
  * falhavam. Um teste que aceita qualquer falha não distingue a guarda
  * funcionando da guarda quebrada.
  */
-function recusaPara(sha: string, respostaDaApi: string = RESPOSTA_DO_APP): { status: number; saida: string } {
+function recusaPara(
+  sha: string,
+  respostaDaApi: string = RESPOSTA_DO_APP,
+): { status: number; saida: string } {
   try {
     decisaoPara(sha, respostaDaApi);
   } catch (err) {
@@ -285,7 +304,14 @@ beforeAll(() => {
   mergeDePrComum = git(["rev-parse", "HEAD"]);
 
   // ── O merge da release, com o fragmento do concorrente ainda vivo ────────
-  git(["merge", "-q", "--no-ff", "-m", "Merge pull request #461 from release/9.9.9", pontaDaRelease]);
+  git([
+    "merge",
+    "-q",
+    "--no-ff",
+    "-m",
+    "Merge pull request #461 from release/9.9.9",
+    pontaDaRelease,
+  ]);
   mergeDaReleaseComCorrida = git(["rev-parse", "HEAD"]);
 
   // ── Um commit qualquer de feature, que não encosta em .changes/ ──────────
@@ -309,7 +335,12 @@ describe("a guarda reconhece o corte pela forma dele", () => {
     // Sem este caso, o anterior poderia estar passando por um cenário onde a
     // regra velha também funcionaria, e o teste não provaria nada.
     const sobraram = git([
-      "ls-tree", "-r", "--name-only", mergeDaReleaseComCorrida, "--", ".changes/",
+      "ls-tree",
+      "-r",
+      "--name-only",
+      mergeDaReleaseComCorrida,
+      "--",
+      ".changes/",
     ])
       .split("\n")
       .filter((l) => l.endsWith(".md"));
@@ -394,7 +425,7 @@ describe("a guarda recusa ALTO, e não em silêncio, quem apaga fragmento sem se
 
     const r = recusaPara(manual, RESPOSTA_DE_GENTE);
     expect(r.status, "a guarda tem de sair com 1, e não morrer por outro motivo").toBe(1);
-    expect(r.saida).toMatch(/não foi aberto pelo App da release/);
+    expect(r.saida).toMatch(/não veio de head release/);
     // O dado de fora do git aparece na recusa…
     expect(r.saida).toMatch(/deskcommopp4s-cmd/);
     // …e o nome de autor não aparece em lugar nenhum dela.

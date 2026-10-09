@@ -24,7 +24,10 @@ function job(yml: string, nome: string): string {
 
 describe("nenhuma tag publica sem estar contida na main", () => {
   it("o job da trava existe", () => {
-    expect(job(publish, "a-tag-veio-da-main"), "a trava de procedência sumiu de publish-image.yml").not.toBe("");
+    expect(
+      job(publish, "a-tag-veio-da-main"),
+      "a trava de procedência sumiu de publish-image.yml",
+    ).not.toBe("");
   });
 
   it.each(["build-and-push", "imagem-do-app-sobe"])(
@@ -57,13 +60,13 @@ describe("nenhuma tag publica sem estar contida na main", () => {
 });
 
 describe("a tag nasce no CI, e nunca do GITHUB_TOKEN", () => {
-  it("o release usa o token do GitHub App para escrever", () => {
-    // Evento disparado com o GITHUB_TOKEN não cria novo workflow run (doc do
-    // GitHub). Se a tag nascesse dele, `publish-image.yml` nunca rodaria: a tag
-    // existiria, nenhum erro apareceria, e NENHUMA VPS receberia a atualização.
-    expect(release).toContain("actions/create-github-app-token");
-    expect(release).toContain("secrets.RELEASE_APP_ID");
-    expect(release).toContain("secrets.RELEASE_APP_PRIVATE_KEY");
+  it("o release usa um token fine-grained do repositório para disparar a cadeia de workflows", () => {
+    // O token do GitHub App do upstream não está instalado neste fork. Um PAT
+    // fine-grained limitado a este repositório dispara os workflows de push.
+    expect(release).toContain("secrets.RELEASE_TOKEN");
+    expect(release).not.toContain("actions/create-github-app-token");
+    expect(release).not.toContain("RELEASE_APP_ID");
+    expect(release).not.toContain("RELEASE_APP_PRIVATE_KEY");
   });
 
   it("nenhum job do release pede escopo de escrita ao GITHUB_TOKEN", () => {
@@ -79,7 +82,12 @@ describe("a tag nasce no CI, e nunca do GITHUB_TOKEN", () => {
     // não o nome da função — que já mudou uma vez, quando a conferência passou a
     // comparar digest em vez de código de status (issue #488).
     expect(t, "o corte não consulta mais o registro").toMatch(/ghcr\.io\/v2\//);
-    for (const img of ["deskcommcrm", "deskcomm-worker", "deskcomm-scheduler", "deskcomm-voice-agent"]) {
+    for (const img of [
+      "deskcommcrm",
+      "deskcomm-worker",
+      "deskcomm-scheduler",
+      "deskcomm-voice-agent",
+    ]) {
       expect(t, `a conferência não cobre ${img}`).toContain(img);
     }
     expect(t).toMatch(/::error::/);
@@ -101,8 +109,9 @@ describe("a tag nasce no CI, e nunca do GITHUB_TOKEN", () => {
     expect(t).toMatch(/git diff[^\n]*--diff-filter=D[^\n]*\.changes\//);
     // O ramo que RECUSA precisa existir: zero removidos não é corte.
     expect(t).toMatch(/removidos[^\n]*-eq 0/);
-    // E a condição que a guarda antiga NÃO tinha: só o App da release corta.
-    expect(t).toMatch(/deskcomm-release\[bot\]/);
+    // A release válida é o PR de head release/* do próprio repositório.
+    expect(t).toContain("release/*");
+    expect(t).toContain("${GITHUB_REPOSITORY}");
   });
 
   it("a tag só é criada em push na main, nunca num dispatch de branch qualquer", () => {
