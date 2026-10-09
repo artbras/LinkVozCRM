@@ -88,6 +88,22 @@ const PROVA_PROPRIA: readonly Excecao[] = [
   { tabela: "channel_connection_requests", razao: "tests/invariants/channel-routing.test.ts — recibo privado sem SELECT authenticated; reserva admin com MFA e finalização service-only cercada por org e lease" },
   { tabela: "appointment_recovery_receipts", razao: "tests/invariants/agenda-presenca-acl.test.ts — leitura/escrita direta anon/authenticated negadas, escrita service_role negada e RPC service-only valida a tupla org/evento nos dois sentidos A/B" },
   { tabela: "event_service_origins", razao: "tests/invariants/service-event-origin.test.ts — recibo server-only, authenticated sem leitura/escrita, RPC rejeita tenant B real" },
+  {
+    tabela: "call_webhook_events",
+    razao: "tests/invariants/call-operational-tables-server-only.test.ts — authenticated sem SELECT/INSERT/UPDATE; service_role consegue escrever.",
+  },
+  {
+    tabela: "call_service_drafts",
+    razao: "tests/invariants/call-operational-tables-server-only.test.ts — authenticated sem SELECT/INSERT/UPDATE; service_role consegue escrever.",
+  },
+  {
+    tabela: "call_service_operational_state",
+    razao: "tests/invariants/call-operational-tables-server-only.test.ts — authenticated sem SELECT/INSERT/UPDATE; service_role consegue escrever.",
+  },
+  {
+    tabela: "call_operational_exceptions",
+    razao: "tests/invariants/call-operational-tables-server-only.test.ts — authenticated sem SELECT/INSERT/UPDATE; service_role consegue escrever.",
+  },
   { tabela: "platform_support_sessions", razao: "tests/invariants/suporte-temporario.test.ts — grant por sessão, readonly e nenhuma escrita direta authenticated" },
   {
     tabela: "webhook_lead_captures",
@@ -270,6 +286,26 @@ const PROVA_PROPRIA: readonly Excecao[] = [
       "tests/invariants/captura-de-clique-e-server-side.test.ts — mesmo " +
       "`describe.each`. Guarda as UTMs de cada clique no botão da landing " +
       "page e o ref curto que as liga à mensagem do WhatsApp.",
+  },
+  {
+    tabela: "call_webhook_events",
+    razao:
+      "tests/invariants/call-operational-tables-server-only.test.ts prova RLS ligada, zero policies, negação real a anon/authenticated e leitura/escrita service_role; sem acesso direto do navegador.",
+  },
+  {
+    tabela: "call_service_drafts",
+    razao:
+      "tests/invariants/call-operational-tables-server-only.test.ts prova RLS ligada, zero policies, negação real a anon/authenticated e leitura/escrita service_role; rascunho operacional é server-only.",
+  },
+  {
+    tabela: "call_service_operational_state",
+    razao:
+      "tests/invariants/call-operational-tables-server-only.test.ts prova RLS ligada, zero policies, negação real a anon/authenticated e leitura/escrita service_role; estado de corrida é server-only.",
+  },
+  {
+    tabela: "call_operational_exceptions",
+    razao:
+      "tests/invariants/call-operational-tables-server-only.test.ts prova RLS ligada, zero policies, negação real a anon/authenticated e leitura/escrita service_role; call-operational-exceptions-redact.test.ts prova redação LGPD.",
   },
 ];
 

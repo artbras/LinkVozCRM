@@ -5,6 +5,7 @@ import {
   consultarCliente,
   consultarEmpresa,
   criarServico,
+  consultarServico,
   solicitarRetorno,
 } from "./agent-client";
 
@@ -41,6 +42,38 @@ describe("cliente HTTP do sistema Call", () => {
       ok: true,
       data: { id_cliente: 7, nm_cliente: "Maria", telefone: "5521999999999" },
     });
+  });
+
+  it("consulta corrida enviando somente a acao e o ID e preserva o retorno completo", async () => {
+    const corridaCompleta = {
+      id: 9182,
+      status: "EM_ANDAMENTO",
+      nm_cliente: "Passageiro de teste",
+      telefone: "21999999999",
+      destino: "Aeroporto",
+      dados_unidade: { unidade: "12", placa: "ABC1D23" },
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ success: true, data: corridaCompleta }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const result = await consultarServico({
+      baseUrl: "http://call.test:3011",
+      franchiseId: 1,
+      serviceId: 9182,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://call.test:3011/internal/agent",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ acao: "servico", id: 9182 }),
+      }),
+    );
+    expect(result).toEqual({ ok: true, data: corridaCompleta });
   });
 
   it("não transforma erro funcional do Call em sucesso", async () => {

@@ -828,6 +828,16 @@ const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
     motivo:
       "endpoint da API da DeepSeek (OpenAI-compatível) no registry de produção, no runtime de ensaio, no validador de chave e na prova de crédito. É o destino do request, não texto de interface; trocar pelo domínio do revendedor faria a chamada não chegar.",
   },
+  "api.heigit.org": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "endpoint do OpenRouteService chamado por lib/tarifa/consulta.ts para calcular rota e distância da tarifa; domínio do fornecedor, não da instalação.",
+  },
+  "nominatim.openstreetmap.org": {
+    categoria: "FORNECEDOR",
+    motivo:
+      "serviço de geocodificação do OpenStreetMap chamado por lib/tarifa/consulta.ts para resolver origem e destino da tarifa; domínio do fornecedor.",
+  },
   "router.requesty.ai": {
     categoria: "FORNECEDOR",
     motivo:

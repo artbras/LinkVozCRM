@@ -17,13 +17,13 @@ const request = {
   externalCustomerId: null,
 };
 let rows: Record<string, Row[]>;
-let failure: { message: string } | null;
+let failure: { message: string; table: string; occurrence?: number } | null;
 const reads: { table: string; columns: string; range: [number, number] }[] = [];
 
 /** Execute the collector's filters and projection against mixed-owner fixtures. */
 class ReadQuery {
   columns = "";
-  filters: [string, unknown][] = [];
+  filters: ((row: Row) => boolean)[] = [];
   page: [number, number] = [0, 1000];
   constructor(readonly table: string) {}
   select(columns: string) {
@@ -31,7 +31,15 @@ class ReadQuery {
     return this;
   }
   eq(key: string, value: unknown) {
-    this.filters.push([key, value]);
+    this.filters.push((row) => row[key] === value);
+    return this;
+  }
+  is(key: string, value: unknown) {
+    this.filters.push((row) => row[key] === value);
+    return this;
+  }
+  in(key: string, values: unknown[]) {
+    this.filters.push((row) => values.includes(row[key]));
     return this;
   }
   order() {
@@ -57,9 +65,15 @@ class ReadQuery {
   }
   async execute() {
     reads.push({ table: this.table, columns: this.columns, range: this.page });
-    if (this.table === "prospecting_candidates" && failure) return { data: null, error: failure };
+    const tableReads = reads.filter((read) => read.table === this.table).length;
+    if (
+      failure?.table === this.table &&
+      (failure.occurrence === undefined || failure.occurrence === tableReads)
+    ) {
+      return { data: null, error: failure };
+    }
     const data = (rows[this.table] ?? [])
-      .filter((row) => this.filters.every(([key, value]) => row[key] === value))
+      .filter((row) => this.filters.every((filter) => filter(row)))
       .slice(this.page[0], this.page[1] + 1)
       .map((row) =>
         Object.fromEntries(
@@ -117,6 +131,57 @@ beforeEach(() => {
         created_at: "2026-09-15T00:00:00Z",
       },
     ],
+    conversations: [
+      {
+        id: "conversation-a",
+        organization_id: ORG,
+        contact_id: CONTACT,
+        status: "open",
+        channel: "whatsapp",
+        last_inbound_at: null,
+        last_message_at: "2026-09-16T00:00:00Z",
+        is_group: false,
+        created_at: "2026-09-15T00:00:00Z",
+      },
+    ],
+    call_operational_exceptions: [
+      {
+        id: "exception-direct",
+        organization_id: ORG,
+        contact_id: CONTACT,
+        conversation_id: null,
+        event_id: "event-direct",
+        franchise_id: 1,
+        service_id: 123,
+        category: "no_driver",
+        severity: "high",
+        status: "open",
+        payload: { operational_note: "direct link" },
+        handoff_requested_at: null,
+        handoff_result: null,
+        resolved_at: null,
+        created_at: "2026-09-16T00:00:00Z",
+        updated_at: "2026-09-16T00:00:00Z",
+      },
+      {
+        id: "exception-conversation",
+        organization_id: ORG,
+        contact_id: null,
+        conversation_id: "conversation-a",
+        event_id: "event-conversation",
+        franchise_id: 1,
+        service_id: 124,
+        category: "driver_delay",
+        severity: "medium",
+        status: "handoff_requested",
+        payload: { operational_note: "conversation link" },
+        handoff_requested_at: "2026-09-16T00:00:00Z",
+        handoff_result: { status: "pending" },
+        resolved_at: null,
+        created_at: "2026-09-16T00:00:00Z",
+        updated_at: "2026-09-16T00:00:00Z",
+      },
+    ],
     prospecting_candidates: [
       candidate("mine"),
       candidate("other-contact", ORG, OTHER_CONTACT),
@@ -172,8 +237,44 @@ describe("LGPD: dados da prospecção no pedido de acesso", () => {
     expect(reads.map((read) => read.table)).toEqual(["organizations"]);
   });
 
+  it("inclui exceções ligadas ao contato e às conversas no JSON exportável", async () => {
+    const payload = await collectExportData(request);
+
+    expect(payload.call_operational_exceptions).toEqual([
+      expect.objectContaining({ id: "exception-direct", event_id: "event-direct", service_id: 123 }),
+      expect.objectContaining({
+        id: "exception-conversation",
+        event_id: "event-conversation",
+        service_id: 124,
+      }),
+    ]);
+    const json = JSON.parse(JSON.stringify(payload)) as typeof payload;
+    expect(json.call_operational_exceptions).toEqual(payload.call_operational_exceptions);
+    expect(JSON.stringify(json)).toContain('"event-conversation"');
+  });
+
+  it("não conclui o export quando a projeção de conversas falha", async () => {
+    failure = { table: "conversations", occurrence: 1, message: "database unavailable" };
+    await expect(collectExportData(request)).rejects.toEqual(failure);
+  });
+
+  it("não conclui o export quando a paginação das conversas falha", async () => {
+    failure = { table: "conversations", occurrence: 2, message: "database unavailable" };
+    await expect(collectExportData(request)).rejects.toEqual(failure);
+  });
+
+  it("não conclui o export quando a consulta de exceções pelo contato falha", async () => {
+    failure = { table: "call_operational_exceptions", occurrence: 1, message: "database unavailable" };
+    await expect(collectExportData(request)).rejects.toEqual(failure);
+  });
+
+  it("não conclui o export quando a consulta de exceções pela conversa falha", async () => {
+    failure = { table: "call_operational_exceptions", occurrence: 2, message: "database unavailable" };
+    await expect(collectExportData(request)).rejects.toEqual(failure);
+  });
+
   it("não entrega export aparentemente completo quando a coleta de prospecção falha", async () => {
-    failure = { message: "database unavailable" };
+    failure = { table: "prospecting_candidates", message: "database unavailable" };
     await expect(collectExportData(request)).rejects.toEqual(failure);
   });
 });

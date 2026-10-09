@@ -42,6 +42,7 @@ import { describe, expect, it } from "vitest";
 const RAIZ = path.resolve(__dirname, "../..");
 const BASELINE = fs.readFileSync(path.join(RAIZ, "supabase/baseline.sql"), "utf8");
 const COLETOR = fs.readFileSync(path.join(RAIZ, "lib/lgpd/export-collector.ts"), "utf8");
+const WORKER = fs.readFileSync(path.join(RAIZ, "workers/lgpd-export-worker.ts"), "utf8");
 
 /** Corpos de função cujo NOME anuncia redação — no dump vêm com identificador entre aspas. */
 function corposDeRedacao(): string[] {
@@ -103,5 +104,11 @@ describe("LGPD: o export alcança tudo que a redação alcança", () => {
         "`lib/lgpd/export-collector.ts`, espelhando o de `crm_lead_activities`:\n" +
         faltando.map((f) => `  ${f}`).join("\n"),
     ).toEqual([]);
+  });
+
+  it("o worker envia o payload integral do coletor no JSON entregue", () => {
+    expect(WORKER).toContain("const data = await collectExportData({");
+    expect(WORKER).toContain('const jsonBytes = Buffer.from(JSON.stringify(data, null, 2), "utf-8");');
+    expect(WORKER).toContain(".upload(jsonPath, jsonBytes, {");
   });
 });

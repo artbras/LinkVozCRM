@@ -32,6 +32,7 @@ function payload(): ExportPayload {
     leads: [],
     orders: [],
     activities: [],
+    call_operational_exceptions: [],
     appointments: [],
     sales: [],
     tasks: [],

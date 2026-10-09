@@ -439,6 +439,22 @@ export interface CampaignSuppressionRow {
   created_at: string;
 }
 
+export interface CallOperationalExceptionRow {
+  id: string;
+  event_id: string;
+  franchise_id: number;
+  service_id: number | string;
+  category: string;
+  severity: string;
+  status: string;
+  payload: unknown;
+  handoff_requested_at: string | null;
+  handoff_result: unknown;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ExportPayload {
   request_id: string;
   organization_id: string;
@@ -473,6 +489,7 @@ export interface ExportPayload {
   leads: LeadRow[];
   orders: OrderRow[];
   activities: ActivityRow[];
+  call_operational_exceptions: CallOperationalExceptionRow[];
   checkpoints: CheckpointRow[];
   appointments: AppointmentRow[];
   sales: SaleRow[];
@@ -773,12 +790,8 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
       .eq("contact_id", contactId)
       .order("last_message_at", { ascending: false, nullsFirst: false })
       .limit(500);
-    if (error) {
-      logger.warn("[lgpd-export-worker] conversations load failed", {
-        request_id: requestId,
-        error: error.message,
-      });
-    } else if (data) {
+    if (error) throw error;
+    if (data) {
       conversations = data.map((c) => ({
         id: c.id,
         status: c.status,
@@ -891,6 +904,25 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     }
   }
 
+  // Reuse the full contact conversation set for exception and case exports.
+  // The 500-row projection above is intentionally not used as a filter.
+  const conversationIdsForContact: string[] = [];
+  if (contactId) {
+    const pageSize = 500;
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await admin
+        .from("conversations")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("contact_id", contactId)
+        .order("id")
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      for (const conversation of data ?? []) conversationIdsForContact.push(conversation.id);
+      if (!data || data.length < pageSize) break;
+    }
+  }
+
   // Activities — direct contact_id on crm_lead_activities.
   let activities: ActivityRow[] = [];
   if (contactId) {
@@ -908,6 +940,56 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
       });
     } else if (data) {
       activities = data;
+    }
+  }
+
+  // Call exceptions — export operational metadata and data before redaction.
+  // They may be linked directly to the contact or only through its conversations.
+  const call_operational_exceptions: CallOperationalExceptionRow[] = [];
+  if (contactId) {
+    const pageSize = 500;
+    const refBatchSize = 100;
+    const seenExceptionIds = new Set<string>();
+    const columns =
+      "id,event_id,franchise_id,service_id,category,severity,status,payload,handoff_requested_at,handoff_result,resolved_at,created_at,updated_at";
+
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await admin
+        .from("call_operational_exceptions")
+        .select(columns)
+        .eq("organization_id", organizationId)
+        .eq("contact_id", contactId)
+        .order("id")
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      for (const row of (data ?? []) as unknown as CallOperationalExceptionRow[]) {
+        if (!seenExceptionIds.has(row.id)) {
+          seenExceptionIds.add(row.id);
+          call_operational_exceptions.push(row);
+        }
+      }
+      if (!data || data.length < pageSize) break;
+    }
+
+    for (let batch = 0; batch < conversationIdsForContact.length; batch += refBatchSize) {
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await admin
+          .from("call_operational_exceptions")
+          .select(columns)
+          .eq("organization_id", organizationId)
+          .in("conversation_id", conversationIdsForContact.slice(batch, batch + refBatchSize))
+          .is("contact_id", null)
+          .order("id")
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        for (const row of (data ?? []) as unknown as CallOperationalExceptionRow[]) {
+          if (!seenExceptionIds.has(row.id)) {
+            seenExceptionIds.add(row.id);
+            call_operational_exceptions.push(row);
+          }
+        }
+        if (!data || data.length < pageSize) break;
+      }
     }
   }
 
@@ -1184,26 +1266,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
   if (contactId) {
     const pageSize = 500;
     const refBatchSize = 100; // Mantém o filtro IN abaixo dos limites de URL dos proxies.
-    const conversationIds: string[] = [];
-    for (let offset = 0; ; offset += pageSize) {
-      const { data, error } = await admin
-        .from("conversations")
-        .select("id")
-        .eq("organization_id", organizationId)
-        .eq("contact_id", contactId)
-        .order("id")
-        .range(offset, offset + pageSize - 1);
-      if (error) {
-        logger.warn("[lgpd-export-worker] case conversation refs load failed", {
-          request_id: requestId,
-          error: error.message,
-        });
-        break;
-      }
-      for (const conversa of data ?? []) conversationIds.push(conversa.id);
-      if (!data || data.length < pageSize) break;
-    }
-    for (let batch = 0; batch < conversationIds.length; batch += refBatchSize) {
+    for (let batch = 0; batch < conversationIdsForContact.length; batch += refBatchSize) {
       for (let offset = 0; ; offset += pageSize) {
         const { data, error } = await admin
           .from("agent_cases")
@@ -1211,7 +1274,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
             "id, conversation_id, status, title, summary, blocker, source, opened_at, closed_at, created_at",
           )
           .eq("organization_id", organizationId)
-          .in("conversation_id", conversationIds.slice(batch, batch + refBatchSize))
+          .in("conversation_id", conversationIdsForContact.slice(batch, batch + refBatchSize))
           .order("id")
           .range(offset, offset + pageSize - 1);
         if (error) {
@@ -1446,7 +1509,8 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
       !contact &&
       conversations.length === 0 &&
       orders.length === 0 &&
-      prospecting_candidates.length === 0,
+      prospecting_candidates.length === 0 &&
+      call_operational_exceptions.length === 0,
     contact,
     consents,
     conversations,
@@ -1455,6 +1519,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     leads,
     orders,
     activities,
+    call_operational_exceptions,
     checkpoints,
     appointments,
     sales,
@@ -1500,6 +1565,7 @@ function emptyPayload(
     leads: [],
     orders: [],
     activities: [],
+    call_operational_exceptions: [],
     checkpoints: [],
     appointments: [],
     sales: [],

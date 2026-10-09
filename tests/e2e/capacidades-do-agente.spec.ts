@@ -174,9 +174,10 @@ test.describe("Configurar o que o agente pode fazer", () => {
   test("as jornadas aparecem em português, com explicação e contagem", async ({ page }) => {
     await abrirConfiguracao(page);
 
-    // Os 6 pacotes estão na tela, e o texto é o que uma pessoa lê — não id.
+    // Os pacotes estão na tela, e o texto é o que uma pessoa lê — não id.
     await expect(page.getByText("Atender e responder")).toBeVisible();
     await expect(page.getByText("Vender e mover o funil")).toBeVisible();
+    await expect(page.getByText("Operar corridas")).toBeVisible();
     await expect(
       page.getByText(/O agente lê a conversa, entende o histórico/),
     ).toBeVisible();

@@ -67,7 +67,13 @@ const LOGIN_DO_APP = "deskcommcrm-release[bot]";
 const REPO_DE_CIMA = "melgarafael/DeskcommCRM";
 
 /** Uma linha no formato que o `--jq` da guarda produz: cinco campos por TAB. */
-function linhaDaApi(login: string, tipo: string, ref: string, repo: string, numero: number): string {
+function linhaDaApi(
+  login: string,
+  tipo: string,
+  ref: string,
+  repo: string,
+  numero: number,
+): string {
   return [login, tipo, ref, repo, String(numero)].join("\t");
 }
 
@@ -91,7 +97,10 @@ function bashDaGuarda(): string {
   const run = yml.indexOf("run: |", inicio);
   expect(run, "o passo da guarda não tem bloco run").toBeGreaterThan(-1);
 
-  const linhas = yml.slice(run + "run: |".length).split("\n").slice(1);
+  const linhas = yml
+    .slice(run + "run: |".length)
+    .split("\n")
+    .slice(1);
   const corpo: string[] = [];
   for (const l of linhas) {
     // O bloco acaba na primeira linha não-vazia com indentação menor que a dele.
@@ -135,7 +144,7 @@ function montarStub(dir: string) {
   writeFileSync(
     caminho,
     [
-      '#!/usr/bin/env bash',
+      "#!/usr/bin/env bash",
       '[ -n "${GH_FALHA}" ] && exit 1',
       '[ -n "${GH_RESPOSTA}" ] && printf \'%s\\n\' "${GH_RESPOSTA}"',
       "exit 0",
@@ -192,12 +201,18 @@ function corteDeMentira(nomeDoBranch: string, autor: string): string {
   git(["checkout", "-q", "-b", nomeDoBranch, antes]);
   rmSync(join(repo, ".changes/a.md"));
   rmSync(join(repo, ".changes/b.md"));
-  writeFileSync(join(repo, "CHANGELOG.md"), "# Changelog\n\n## [9.9.9] — a seção que autoriza a tag\n");
+  writeFileSync(
+    join(repo, "CHANGELOG.md"),
+    "# Changelog\n\n## [9.9.9] — a seção que autoriza a tag\n",
+  );
   commit("release(9.9.9): a versão montada a partir dos fragmentos", autor);
   git(["checkout", "-q", "main"]);
   // O merge também é assinado: no corte real o App abre o PR E mergeia, então
   // os dois commits que a guarda antiga podia olhar trazem o nome dela.
-  git(["merge", "-q", "--no-ff", "-m", `Merge pull request #9999 from ${nomeDoBranch}`, nomeDoBranch], { autor });
+  git(
+    ["merge", "-q", "--no-ff", "-m", `Merge pull request #9999 from ${nomeDoBranch}`, nomeDoBranch],
+    { autor },
+  );
   return git(["rev-parse", "HEAD"]);
 }
 
@@ -216,7 +231,11 @@ interface Resultado {
  * recusa passaria a valer pelo motivo errado. Aqui o `status` é afirmado, e a
  * saída é lida.
  */
-function rodarGuarda(sha: string, respostaDaApi: string, opts: { apiFalha?: boolean } = {}): Resultado {
+function rodarGuarda(
+  sha: string,
+  respostaDaApi: string,
+  opts: { apiFalha?: boolean } = {},
+): Resultado {
   const original = bashDaGuarda();
 
   // A versão vem do CHANGELOG por um script de TS que não existe no repo
@@ -230,9 +249,10 @@ function rodarGuarda(sha: string, respostaDaApi: string, opts: { apiFalha?: bool
     .replace(/HEAD\^/g, `${sha}^`)
     .replace(/\bHEAD\b/g, sha);
 
-  expect(script, "a linha `versao=$(...)` não foi substituída — o script rodaria o cortar-release de verdade").not.toMatch(
-    /cortar-release\.ts/,
-  );
+  expect(
+    script,
+    "a linha `versao=$(...)` não foi substituída — o script rodaria o cortar-release de verdade",
+  ).not.toMatch(/cortar-release\.ts/);
 
   const saidaDoGithub = join(repo, `.github-output-${process.pid}-${contador++}`);
   writeFileSync(saidaDoGithub, "");
@@ -255,7 +275,13 @@ function rodarGuarda(sha: string, respostaDaApi: string, opts: { apiFalha?: bool
       env,
       stdio: ["ignore", "pipe", "pipe"],
     }) as string;
-    return { status: 0, decisao: /cortar=(\w+)/.exec(`${saida}\n${readFileSync(saidaDoGithub, "utf8")}`)?.[1] ?? "(nenhuma decisão)", saida };
+    return {
+      status: 0,
+      decisao:
+        /cortar=(\w+)/.exec(`${saida}\n${readFileSync(saidaDoGithub, "utf8")}`)?.[1] ??
+        "(nenhuma decisão)",
+      saida,
+    };
   } catch (err) {
     const e = err as { stderr?: Buffer | string; stdout?: Buffer | string; status?: number };
     const detalhe = [
@@ -299,7 +325,7 @@ describe("a guarda confere IDENTIDADE pelo PR de origem, não pelo nome do autor
 
     const r = rodarGuarda(forjado, RESPOSTA_DE_GENTE);
     expect(r.status, "a guarda tem de sair com 1, e não morrer por outro motivo").toBe(1);
-    expect(r.saida).toMatch(/não foi aberto pelo App da release/);
+    expect(r.saida).toMatch(/não veio de head release/);
     // A recusa cita o dado de FORA do git: quem a API diz que abriu o PR.
     expect(r.saida).toMatch(/deskcommopp4s-cmd/);
   });
@@ -318,7 +344,10 @@ describe("a guarda confere IDENTIDADE pelo PR de origem, não pelo nome do autor
 describe("a alternativa que a issue cita: head `release/*` do repositório de cima", () => {
   it("PR aberto por gente, com head release/9.9.9 DESTE repositório, corta", () => {
     const corte = corteDeMentira("release/9.9.9", "Fulano de Tal");
-    const r = rodarGuarda(corte, linhaDaApi("deskcommopp4s-cmd", "User", "release/9.9.9", REPO_DE_CIMA, 1112));
+    const r = rodarGuarda(
+      corte,
+      linhaDaApi("deskcommopp4s-cmd", "User", "release/9.9.9", REPO_DE_CIMA, 1112),
+    );
     expect(r.status, `a guarda derrubou o passo: ${r.saida}`).toBe(0);
     expect(r.decisao).toBe("sim");
   });
@@ -327,7 +356,13 @@ describe("a alternativa que a issue cita: head `release/*` do repositório de ci
     const corte = corteDeMentira("release/9.9.9", NOME_DE_AUTOR_QUE_O_APP_GRAVA);
     const r = rodarGuarda(
       corte,
-      linhaDaApi("deskcommopp4s-cmd", "User", "release/9.9.9", "deskcommopp4s-cmd/deskcomm-fixes", 1112),
+      linhaDaApi(
+        "deskcommopp4s-cmd",
+        "User",
+        "release/9.9.9",
+        "deskcommopp4s-cmd/deskcomm-fixes",
+        1112,
+      ),
     );
     expect(r.status, "a guarda tem de sair com 1, e não morrer por outro motivo").toBe(1);
     expect(r.saida).toMatch(/deskcommopp4s-cmd/);
@@ -352,9 +387,29 @@ describe("a borda do --diff-filter=D: renomear fragmento não é consumir fragme
     git(["mv", ".changes/a.md", ".changes/za.md"]);
     const renomeado = commit("chore: renomeia o fragmento para arrumar a ordem alfabética");
 
-    const semFlag = git(["diff", "--diff-filter=D", "--name-only", `${renomeado}^`, renomeado, "--", ".changes/"]);
-    const comFlag = git(["diff", "--find-renames", "--diff-filter=D", "--name-only", `${renomeado}^`, renomeado, "--", ".changes/"]);
-    expect(semFlag, "sem --find-renames o git lista o caminho antigo: é o que a flag fecha").toContain(".changes/a.md");
+    const semFlag = git([
+      "diff",
+      "--diff-filter=D",
+      "--name-only",
+      `${renomeado}^`,
+      renomeado,
+      "--",
+      ".changes/",
+    ]);
+    const comFlag = git([
+      "diff",
+      "--find-renames",
+      "--diff-filter=D",
+      "--name-only",
+      `${renomeado}^`,
+      renomeado,
+      "--",
+      ".changes/",
+    ]);
+    expect(
+      semFlag,
+      "sem --find-renames o git lista o caminho antigo: é o que a flag fecha",
+    ).toContain(".changes/a.md");
     expect(comFlag, "com --find-renames o rename não é remoção").toBe("");
 
     // E a guarda, com a flag, decide que este push não foi um corte — em vez de
@@ -380,6 +435,6 @@ describe("a API só é consultada quando há fragmento apagado", () => {
     const corte = corteDeMentira("release/9.9.9", "Fulano de Tal");
     const r = rodarGuarda(corte, RESPOSTA_DO_APP, { apiFalha: true });
     expect(r.status, "a guarda tem de sair com 1, e não morrer por outro motivo").toBe(1);
-    expect(r.saida).toMatch(/não conseguiu perguntar à API/);
+    expect(r.saida).toMatch(/não conseguiu consultar o PR de origem/);
   });
 });

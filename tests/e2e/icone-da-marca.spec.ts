@@ -10,11 +10,10 @@ import { test, expect } from "@playwright/test";
  * nenhum — num repositório que já pagou a lição de que rótulo visível é
  * contrato.
  *
- * Tudo aqui roda DESLOGADO de propósito. É o estado do comprador que acabou de
- * instalar e abriu a primeira tela: se o ícone responder 307 para o login (era
- * o comportamento antes de `/icon` entrar em PUBLIC_PATHS), a marca dele não
- * aparece exatamente na primeira impressão. E, por não precisar de login, esta
- * spec não consome do teto de 60 logins/IP/300s que a suíte compartilha.
+ * Tudo aqui roda DESLOGADO de propósito. A spec confirma que a rota pública
+ * `/icon` responde sem sessão e que o `<head>` do login declara o asset que o
+ * layout realmente publica. Por não precisar de login, ela não consome do teto
+ * de 60 logins/IP/300s que a suíte compartilha.
  */
 test.describe("o ícone e o título carregam a marca da instalação", () => {
   test("GET /icon responde imagem para quem não entrou", async ({ request }) => {
@@ -44,8 +43,8 @@ test.describe("o ícone e o título carregam a marca da instalação", () => {
       .first()
       .getAttribute("href");
     expect(href, "nenhum <link rel=icon> no <head>").toBeTruthy();
-    // `/icon` com ou sem query de cache-busting do Next.
-    expect(new URL(href ?? "", "http://x").pathname).toBe("/icon");
+    // O layout raiz mantém o asset de marca publicado para esta versão.
+    expect(new URL(href ?? "", "http://x").pathname).toBe("/logo-2.png");
   });
 
   test("o título da aba herda a marca resolvida, e é a MESMA que a tela mostra", async ({

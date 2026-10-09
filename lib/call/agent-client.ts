@@ -172,8 +172,7 @@ export async function consultarServico(input: {
     return { ok: false as const, code: "INVALID_SERVICE_ID" };
   return postCall<Record<string, unknown>>(input.baseUrl, {
     acao: "servico",
-    idf: input.franchiseId,
-    id_servico: input.serviceId,
+    id: input.serviceId,
   });
 }
 

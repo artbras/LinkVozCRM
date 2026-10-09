@@ -8,12 +8,10 @@ name: release
 #   2. VOCÊ faz merge desse PR → ele cria a tag `vX.Y.Z`, e é a tag que faz o
 #      `publish-image.yml` publicar as três imagens que a VPS puxa.
 #
-# Quem escreve (branch, PR, tag) é o token de um GitHub App, NUNCA o
-# GITHUB_TOKEN. A razão é uma armadilha documentada pelo próprio GitHub: evento
-# disparado com o GITHUB_TOKEN não cria novo workflow run. Se a tag nascesse
-# dele, o `publish-image.yml` jamais rodaria — a tag existiria, ninguém veria
-# erro, e NENHUMA VPS receberia a atualização. Falha silenciosa, descoberta só
-# quando um cliente tentasse atualizar.
+# Quem escreve (branch, PR, tag) é um fine-grained PAT limitado a este
+# repositório. O GitHub App do upstream não está instalado neste fork. O
+# GITHUB_TOKEN não serve: eventos disparados por ele não criam workflow runs;
+# a tag existiria, mas `publish-image.yml` não rodaria.
 #
 # Por isso o ato 2 não confia: ele espera a publicação e CONFERE as três imagens
 # no registro, falhando alto se não aparecerem.
@@ -23,8 +21,9 @@ on:
   push:
     branches: [main]
 
-# O GITHUB_TOKEN aqui só clona e lê. Todo escopo de escrita vem do App, o que
-# mantém `tests/unit/workflows-tem-permissions.test.ts` sem entrada nova.
+# O GITHUB_TOKEN do workflow só lê. Escrita usa RELEASE_TOKEN, limitado ao
+# repositório e configurado como Actions secret pelo mantenedor. Setup:
+# `docs/runbooks/release-github-token.md`.
 permissions:
   contents: read
 
@@ -35,18 +34,12 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/create-github-app-token@v3
-        id: token
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-
       - uses: actions/checkout@v7
         with:
           # `fetch-depth: 0` porque o corte compara com as tags, e o checkout
           # raso padrão não traz nenhuma.
           fetch-depth: 0
-          token: ${{ steps.token.outputs.token }}
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - uses: ./.github/actions/preparar-node
         # O teto do preâmbulo mora aqui porque passo de composite action não
@@ -63,12 +56,12 @@ jobs:
 
       - name: Abrir o PR
         env:
-          GH_TOKEN: ${{ steps.token.outputs.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           VERSAO: ${{ steps.corte.outputs.versao }}
         run: |
           set -euo pipefail
-          git config user.name  'deskcomm-release[bot]'
-          git config user.email '${{ steps.token.outputs.app-slug }}[bot]@users.noreply.github.com'
+          git config user.name  "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
           git checkout -b "release/${VERSAO}"
           git add CHANGELOG.md .changes
           git commit -m "release(${VERSAO}): a versão montada a partir dos fragmentos declarados"
@@ -94,19 +87,13 @@ jobs:
       # A guarda pergunta à API quem abriu o PR de origem do merge
       # (`commits/{sha}/pulls`, issue #478) e esse endpoint é de pull request:
       # sem esta linha a resposta é 403 e a guarda recusaria corte legítimo.
-      # Leitura só — quem escreve continua sendo o token do App.
+      # Leitura só — a escrita é feita pelo fine-grained PAT RELEASE_TOKEN.
       pull-requests: read
     steps:
-      - uses: actions/create-github-app-token@v3
-        id: token
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          token: ${{ steps.token.outputs.token }}
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - uses: ./.github/actions/preparar-node
         # O teto do preâmbulo mora aqui porque passo de composite action não
@@ -116,14 +103,11 @@ jobs:
       - name: Este push foi um corte de release?
         id: pendente
         env:
-          # Token de leitura para perguntar à API do GitHub quem abriu o PR de
-          # origem do merge (issue #478). É o token do próprio workflow, e não
-          # o do App: a guarda pergunta, ela não escreve nada.
+          # `GITHUB_TOKEN` é leitura. A identidade do PR é verificada pela API;
+          # a tag e a release são publicadas por RELEASE_TOKEN.
           GH_TOKEN: ${{ github.token }}
-          # `app-slug` é o slug do App que emitiu o token do passo anterior; o
-          # login do bot é `<slug>[bot]` — a MESMA montagem que o passo da tag
-          # usa no e-mail do commit, no `git config user.email` lá embaixo.
-          APP_SLUG: ${{ steps.token.outputs.app-slug }}
+          # O PR deve ser originado do branch release/* deste mesmo repositório.
+          # Não dependemos da identidade de um GitHub App do upstream.
         run: |
           set -euo pipefail
 
@@ -158,43 +142,13 @@ jobs:
           # falhou (f6f91377): a guarda antiga via depois=1 e recusava; a
           # nova vê 3 removidos e corta.
           #
-          # ⚠️ A TERCEIRA CONDIÇÃO É IDENTIDADE, NÃO NOME — issue #478.
-          #
-          # A versão anterior desta guarda procurava `%an` igual a
-          # `deskcomm-release[bot]`, e isso não é identidade: `%an` é o NOME DO
-          # AUTOR, campo de texto que qualquer um define.
-          # `git -c user.name='deskcomm-release[bot]' commit` devolve exatamente
-          # a string procurada. A versão anterior deste comentário ainda dizia
-          # que a identidade do App "vive em secrets" — isso também é FALSO.
-          #
-          # Nem adianta trocar por conferência criptográfica: os cinco cortes
-          # reais desta main têm `%G? = N` — não há assinatura para conferir.
-          #
-          # Então a pergunta saiu do git e foi para a API, que sabe qual PR deu
-          # origem a este commit e quem o abriu. Medido em 2026-09-18 nos dois
-          # cortes reais mais recentes da main: o PR #1160 (`release/1.34.0`,
-          # commit 3a4df3cb) e o PR #1136 (`release/1.33.0`, 577c46e9) respondem
-          # `login=deskcommcrm-release[bot]`, `user.type=Bot`, head `release/*`
-          # no próprio repositório. É o App — e o autor do commit não escolhe
-          # esse dado. (O `user.name` que o ato 1 grava no git é
-          # `deskcomm-release[bot]`, sem o "crm": nome de exibição e login vivem
-          # separados, e é o login que a API devolve.)
-          #
-          # A guarda aceita duas provas, as duas fora do git: (1) o PR de origem
-          # foi aberto pelo bot do App que este workflow usa, ou (2) o head do PR
-          # é um branch `release/*` do PRÓPRIO repositório de cima — o caminho
-          # que o ato 1 abre, e o que a issue #478 dá como alternativa. Fork não
-          # conta: quem não tem escrita no repositório de cima não cria branch
-          # por lá nem mergeia um PR dele.
-          #
-          # A forja que cai: nome de autor igual ao do bot num PR aberto por
-          # outra pessoa — coberto em
-          # tests/unit/guarda-da-release-confere-identidade.test.ts.
-          #
-          # E o caso comum — alguém apaga fragmento de `.changes/` sem querer num
-          # PR que não é corte: não passa por nenhuma das duas provas, e a guarda
-          # faz barulho (`::error::`, passo vermelho) em vez de silêncio. É por
-          # isso que a condição fica.
+          # A identidade do autor do commit não é uma prova: qualquer pessoa
+          # pode escrever qualquer `%an`, e os cortes históricos não têm assinatura.
+          # Por isso a guarda consulta a API para identificar o PR de origem.
+          # O corte válido no fork é um PR cujo head `release/*` pertence ao
+          # próprio `GITHUB_REPOSITORY`; PRs de branches/forks comuns não cortam.
+          # Assim uma remoção acidental de `.changes/` falha alto em vez de criar
+          # tag e publicar imagens sem passar pelo fluxo de release.
           versao=$(pnpm exec tsx scripts/cortar-release.ts --versao-do-changelog)
 
           # `--diff-filter=D` conta o que este commit APAGOU de `.changes/`.
@@ -209,73 +163,33 @@ jobs:
           #   com --find-renames              → nada aparece
           removidos=$(git diff --find-renames --diff-filter=D --name-only HEAD^ HEAD -- .changes/ | grep -c '\.md$' || true)
 
-          # ─── QUEM ABRIU O PR DE ORIGEM (fora do git) ──────────────────────
-          #
-          # Num merge commit, `HEAD^2` é a ponta do branch de release; num
-          # squash não há segundo pai. Nos dois casos a pergunta é a mesma, e a
-          # resposta não está no git: a API sabe qual PR deu origem a este
-          # commit e quem o abriu — dado que o autor do commit não escolhe.
-          #
-          # `|| true` para capturar a falha (rede, 403, commit sem PR) em vez
-          # de deixar o `set -e` derrubar o passo: quem decide o que fazer com
-          # a falha é o `if` lá embaixo, e ele RECUSA.
-          # O login com que a API apresenta o App é `<slug>[bot]`, e o slug é o
-          # mesmo dado que o passo do token já usa no e-mail do commit lá
-          # embaixo. Medido em 2026-09-18 nos dois cortes reais da main: o `%an`
-          # do git diz `deskcomm-release[bot]` e a API diz
-          # `deskcommcrm-release[bot]` — o nome que a guarda antiga procurava nem
-          # é o login da identidade. (O e-mail do commit confirma o slug:
-          # `deskcommcrm-release[bot]@users.noreply.github.com`.)
-          #
-          # Slug vazio NÃO derruba a guarda: ela segue com a Prova 2, que cobre
-          # todo corte legítimo (o ato 1 sempre empurra `release/<versão>` deste
-          # repositório). Derrubar aqui barraria release legítimo — o defeito da
-          # #472 pelo outro lado.
-          #
-          # Só pergunta quando há fragmento apagado. Num push comum para a main
-          # (zero removidos) a resposta não decide nada — o `elif` de baixo já
-          # sai com "não é corte" —, e perguntar mesmo assim fazia um soluço da
-          # API pintar de vermelho o workflow num merge que não corta nada.
-          corte_do_app=nao
+          # Só consulta a API quando houve remoção: em push comum ela não decide
+          # nada, e uma indisponibilidade não deve reprovar um merge sem corte.
+          corte_valido=nao
           quem_abriu="(não consultado: este push não apagou fragmento)"
           if [ "${removidos}" -gt 0 ]; then
-            if [ -n "${APP_SLUG}" ]; then
-              esperado="${APP_SLUG}[bot]"
-            else
-              esperado=""
-              echo "::warning::app-slug vazio: a guarda não pôde conferir o login do App e decide pelo head release/* do PR de origem."
-            fi
-
             prs=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
-                --jq '.[] | "\(.user.login)\t\(.user.type)\t\(.head.ref)\t\(.head.repo.full_name // "-")\t\(.number)"' 2>/dev/null) || {
-              echo "::error::A guarda não conseguiu perguntar à API quem abriu o PR de origem de ${GITHUB_SHA:0:8} — sem prova de identidade a tag NÃO é criada."
+                --jq '.[] | [.user.login, .user.type, .head.ref, .head.repo.full_name, .number] | @tsv' 2>/dev/null) || {
+              echo "::error::A guarda não conseguiu consultar o PR de origem — sem confirmação de um branch release/* deste repositório, a tag NÃO é criada."
               exit 1
             }
 
-            quem_abriu="(nenhum PR de origem: o commit foi empurrado direto para a main)"
+            quem_abriu="(nenhum PR de origem: commit direto na main)"
             primeiro=""
-            while IFS="$(printf '\t')" read -r login tipo ref repo numero; do
+            while IFS=$'\t' read -r login tipo ref repo numero; do
               [ -n "${numero:-}" ] || continue
-              descricao="${login} (${tipo}) — PR #${numero}, head ${ref} em ${repo}"
+              descricao="${login} — PR #${numero}, head ${ref} em ${repo}"
               [ -n "${primeiro}" ] || primeiro="${descricao}"
-              if [ -n "${esperado}" ] && [ "${login}" = "${esperado}" ] && [ "${tipo}" = "Bot" ]; then
-                # Prova 1: o PR de origem foi aberto pelo bot do App que este
-                # workflow usa. Só quem tem a chave do App se apresenta assim.
-                corte_do_app=sim
-                quem_abriu="${descricao}"
-              elif [ "${repo}" = "${GITHUB_REPOSITORY}" ]; then
+              if [ "${repo}" = "${GITHUB_REPOSITORY}" ]; then
                 case "${ref}" in
-                  # Prova 2 (a alternativa da issue #478): head `release/*` do
-                  # PRÓPRIO repositório de cima — o caminho que o ato 1 daqui
-                  # abre. Fork não vale: aí `repo` seria o fork.
                   release/*)
-                    corte_do_app=sim
+                    corte_valido=sim
                     quem_abriu="${descricao}"
                     ;;
                 esac
               fi
             done <<< "${prs}"
-            [ "${corte_do_app}" = "sim" ] || quem_abriu="${primeiro:-${quem_abriu}}"
+            [ "${corte_valido}" = "sim" ] || quem_abriu="${primeiro:-${quem_abriu}}"
           fi
 
           # ─── O QUE SOBROU, E POR QUE ISSO IMPORTA ─────────────────────────
@@ -319,13 +233,13 @@ jobs:
             echo "::notice::O CHANGELOG anuncia ${versao} sem tag, mas este push não apagou fragmento nenhum."
             echo "::notice::Tag não criada. Uma release sai do workflow 'release' (Run workflow), nunca de um merge comum."
             echo "cortar=nao" >> "$GITHUB_OUTPUT"
-          elif [ "${corte_do_app}" != "sim" ]; then
+          elif [ "${corte_valido}" != "sim" ]; then
             # Alto, e não `notice`: alguém apagou fragmento de `.changes/` num
             # commit cujo PR de origem a API não reconhece como corte. Ou é
             # forja, ou é engano — e o silêncio é exatamente o que fez a #472
             # passar dias sem ninguém ver.
-            echo "::error::Este commit apagou ${removidos} fragmento(s) de .changes/ mas o PR de origem não foi aberto pelo App da release — o GitHub diz: ${quem_abriu}."
-            echo "::error::A tag v${versao} NÃO foi criada. Um corte legítimo sai do workflow 'release' (Run workflow), com o PR aberto pelo App e head release/<versão> deste repositório."
+            echo "::error::Este commit apagou ${removidos} fragmento(s) de .changes/ mas o PR de origem não veio de head release/* deste repositório — o GitHub diz: ${quem_abriu}."
+            echo "::error::A tag v${versao} NÃO foi criada. Um corte legítimo sai do workflow 'release' (Run workflow), com head release/<versão> deste repositório."
             exit 1
           elif [ -n "${exigem_acao}" ]; then
             # Alto, e de novo não `notice`: este é o único caso em que NÃO cortar
@@ -347,8 +261,8 @@ jobs:
           VERSAO: ${{ steps.pendente.outputs.versao }}
         run: |
           set -euo pipefail
-          git config user.name  'deskcomm-release[bot]'
-          git config user.email '${{ steps.token.outputs.app-slug }}[bot]@users.noreply.github.com'
+          git config user.name  "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
           # Tag ANOTADA: guarda autor e data, e é o que `git describe
           # --exact-match` do agent.sh espera encontrar na VPS.
           git tag -a "v${VERSAO}" -m "v${VERSAO}"
@@ -367,7 +281,7 @@ jobs:
       - name: Publicar a release no GitHub
         if: steps.pendente.outputs.cortar == 'sim'
         env:
-          GH_TOKEN: ${{ steps.token.outputs.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           VERSAO: ${{ steps.pendente.outputs.versao }}
         run: |
           set -euo pipefail
