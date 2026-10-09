@@ -244,17 +244,20 @@ it("anonimização concorrente e atualização de exceção não entram em deadl
       await client.query("begin; set local deadlock_timeout='100ms'; set local statement_timeout='5s'");
     }
 
+
     // A mantém a exceção; B anonimiza o contato e espera a linha da exceção.
     await a.query(
       "select id from public.call_operational_exceptions where organization_id=$1 and event_id=$2 for update",
       [ORG, EVENT_CONCURRENT],
     );
+
     bPending = b
       .query(
         "update public.contacts set is_anonymized=true, anonymized_at=coalesce(anonymized_at,now()) where organization_id=$1 and id=$2",
         [ORG, CONTACT_CONCURRENT],
       )
       .then(() => ({}), (error: unknown) => ({ error }));
+
 
     await expect
       .poll(
@@ -268,6 +271,7 @@ it("anonimização concorrente e atualização de exceção não entram em deadl
       )
       .toBe(true);
 
+
     let aError: unknown;
     try {
       await a.query(
@@ -277,6 +281,7 @@ it("anonimização concorrente e atualização de exceção não entram em deadl
     } catch (error) {
       aError = error;
     }
+
 
     if (aError) await a.query("rollback");
     else await a.query("commit");
@@ -288,7 +293,8 @@ it("anonimização concorrente e atualização de exceção não entram em deadl
     expect(aError, "a atualização da exceção não deve ser abortada por deadlock").toBeUndefined();
     expect(bOutcome.error, "a anonimização não deve ser abortada por deadlock").toBeUndefined();
 
-    const result = await pool.query(
+    // A, B e observer seguem ocupando as três conexões do pool; reutilize A.
+    const result = await a.query(
       "select c.is_anonymized, e.contact_id, e.payload, e.pii_redacted_at from public.contacts c join public.call_operational_exceptions e on e.organization_id=c.organization_id where c.id=$1 and e.event_id=$2",
       [CONTACT_CONCURRENT, EVENT_CONCURRENT],
     );
@@ -335,8 +341,8 @@ it("inserção concorrente à anonimização é redigida sem bloquear nem vazar 
     await anonymization.query("commit");
 
     const persisted = await pool.query(
-      "select e.contact_id, e.payload, e.pii_redacted_at, c.is_anonymized from public.call_operational_exceptions e join public.contacts c on c.organization_id=e.organization_id where e.organization_id=$1 and e.event_id=$2",
-      [ORG, EVENT_INSERT_CONCURRENT],
+      "select c.is_anonymized, e.contact_id, e.payload, e.pii_redacted_at from public.contacts c join public.call_operational_exceptions e on e.organization_id=c.organization_id where c.organization_id=$1 and c.id=$2 and e.event_id=$3",
+      [ORG, CONTACT_INSERT_CONCURRENT, EVENT_INSERT_CONCURRENT],
     );
     expect(persisted.rows[0]).toMatchObject({
       contact_id: null,
