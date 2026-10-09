@@ -11,7 +11,7 @@ import {
 import type { CallApiResult } from "@/lib/call/agent-client";
 import { env } from "@/lib/env";
 
-import type { McpToolDefinition } from "../types";
+import type { McpContext, McpToolDefinition } from "../types";
 
 export function cidadePadraoDoConfig(config: unknown): string | null {
   if (!config || typeof config !== "object") return null;
@@ -29,7 +29,9 @@ function idDoAgente(ctx: { actor: unknown }): string | null {
   return null;
 }
 
-async function cidadePadraoDoAgente(ctx: { actor: unknown; organizationId: string; supabase: any }): Promise<string | null> {
+async function cidadePadraoDoAgente(
+  ctx: Pick<McpContext, "actor" | "organizationId" | "supabase">,
+): Promise<string | null> {
   const agentId = idDoAgente(ctx);
   if (!agentId) return null;
   const { data } = await ctx.supabase

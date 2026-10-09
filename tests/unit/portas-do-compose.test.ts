@@ -199,6 +199,9 @@ describe("a fronteira de rede do que o cliente instala", () => {
           continue;
         }
 
+        // O app é publicado somente em loopback para o Apache da VPS; isso não
+        // expõe a porta na internet e é diferente de um bind em 0.0.0.0.
+        if (/^\s{6}-\s*"?127\.0\.0\.1:/m.test(limpo)) continue;
         publicando.push(`${arquivo} → ${nome}`);
       }
     }

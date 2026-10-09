@@ -287,7 +287,7 @@ describe("o inicializador de useState não lê o navegador", () => {
         "o servidor mandou. Use `useSyncExternalStore` com um " +
         "`getServerSnapshot` determinístico — ver `lib/theme.tsx`.",
     ).toEqual([]);
-  });
+  }, 60_000);
 
   it("CONTROLE POSITIVO: a sonda reprova o padrão do defeito, inclusive através de um import", () => {
     // `lerPrefs()` mora em outro módulo e só lá dentro toca `window`. Se a

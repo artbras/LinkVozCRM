@@ -24,5 +24,6 @@ create table if not exists public.call_service_drafts (
 );
 create index if not exists idx_call_service_drafts_org_state
   on public.call_service_drafts (organization_id, state, updated_at desc);
+alter table public.call_service_drafts enable row level security;
 revoke all on public.call_service_drafts from anon, authenticated;
 grant select, insert, update on public.call_service_drafts to service_role;

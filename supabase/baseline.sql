@@ -38956,6 +38956,102 @@ on conflict (id) do update
       file_size_limit    = excluded.file_size_limit,
       allowed_mime_types = excluded.allowed_mime_types;
 
+-- ---- operações do sistema Call (migrations 0417–0419) ----
+-- O Call é fonte operacional externa; estas tabelas são espelho/evento server-only.
+create table if not exists public.call_webhook_events (
+  id uuid primary key default gen_random_uuid(),
+  event_id text not null unique,
+  event_type text not null,
+  franchise_id integer not null,
+  service_id bigint,
+  organization_id uuid references public.organizations(id) on delete set null,
+  payload jsonb not null,
+  received_at timestamptz not null default now(),
+  processed_at timestamptz,
+  processing_error text,
+  proactive_message_id uuid references public.messages(id) on delete set null
+);
+create index if not exists idx_call_webhook_events_service on public.call_webhook_events (franchise_id, service_id, received_at desc);
+create index if not exists idx_call_webhook_events_pending on public.call_webhook_events (processed_at, received_at);
+create index if not exists idx_call_webhook_events_unprocessed on public.call_webhook_events (organization_id, processed_at, received_at desc);
+alter table public.call_webhook_events enable row level security;
+revoke all on public.call_webhook_events from anon, authenticated;
+grant select, insert, update on public.call_webhook_events to service_role;
+
+create table if not exists public.call_service_drafts (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  franchise_id integer not null,
+  service_payload jsonb not null,
+  state text not null default 'collecting',
+  confirmation_requested_at timestamptz,
+  confirmed_at timestamptz,
+  created_service_id bigint,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint call_service_drafts_state_check check (state in ('collecting','awaiting_confirmation','confirmed','created','cancelled'))
+);
+create index if not exists idx_call_service_drafts_org_state on public.call_service_drafts (organization_id, state, updated_at desc);
+alter table public.call_service_drafts enable row level security;
+revoke all on public.call_service_drafts from anon, authenticated;
+grant select, insert, update on public.call_service_drafts to service_role;
+
+create table if not exists public.call_service_operational_state (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  franchise_id integer not null,
+  service_id bigint not null,
+  status text not null,
+  event_id text not null,
+  event_code text,
+  eta_minutes integer,
+  eta_received_at timestamptz,
+  unit text,
+  unit_name text,
+  vehicle_model text,
+  plate text,
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  unique (organization_id, service_id)
+);
+create index if not exists idx_call_service_operational_state_org_status on public.call_service_operational_state (organization_id, status, updated_at desc);
+alter table public.call_service_operational_state enable row level security;
+revoke all on public.call_service_operational_state from anon, authenticated;
+grant select, insert, update on public.call_service_operational_state to service_role;
+
+create table if not exists public.call_operational_exceptions (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  franchise_id integer not null,
+  service_id bigint not null,
+  event_id text not null,
+  category text not null,
+  severity text not null default 'high',
+  status text not null default 'open',
+  contact_id uuid references public.contacts(id) on delete set null,
+  conversation_id uuid references public.conversations(id) on delete set null,
+  payload jsonb not null default '{}'::jsonb,
+  handoff_requested_at timestamptz,
+  handoff_result jsonb,
+  resolved_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (organization_id, event_id),
+  constraint call_operational_exceptions_category_check check (category in ('no_driver','dispatch_timeout','no_contact','driver_delay','critical_event','unknown_operational_failure')),
+  constraint call_operational_exceptions_severity_check check (severity in ('medium','high','critical')),
+  constraint call_operational_exceptions_status_check check (status in ('open','handoff_requested','resolved','ignored'))
+);
+create index if not exists idx_call_operational_exceptions_open on public.call_operational_exceptions (organization_id, status, severity, created_at desc);
+alter table public.call_operational_exceptions enable row level security;
+revoke all on public.call_operational_exceptions from anon, authenticated;
+grant select, insert, update on public.call_operational_exceptions to service_role;
+
+create unique index if not exists uniq_job_queue_one_running_per_conversation
+  on public.job_queue (organization_id, (payload->>'conversation_id'))
+  where status = 'running'
+    and kind = 'inbound_turn'
+    and payload ? 'conversation_id';
+
 -- ---- módulos instalados são reaplicados, depois de toda tabela do núcleo (migration 0340) ----
 --
 -- A provisionadora de cada módulo instalado roda de novo, sobre o núcleo já

@@ -20,6 +20,7 @@ create table if not exists public.call_service_operational_state (
 );
 create index if not exists idx_call_service_operational_state_org_status
   on public.call_service_operational_state (organization_id, status, updated_at desc);
+alter table public.call_service_operational_state enable row level security;
 revoke all on public.call_service_operational_state from anon, authenticated;
 grant select, insert, update on public.call_service_operational_state to service_role;
 
@@ -47,5 +48,6 @@ create table if not exists public.call_operational_exceptions (
 );
 create index if not exists idx_call_operational_exceptions_open
   on public.call_operational_exceptions (organization_id, status, severity, created_at desc);
+alter table public.call_operational_exceptions enable row level security;
 revoke all on public.call_operational_exceptions from anon, authenticated;
 grant select, insert, update on public.call_operational_exceptions to service_role;

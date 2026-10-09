@@ -14,5 +14,6 @@ create table if not exists public.call_webhook_events (
 );
 create index if not exists idx_call_webhook_events_service on public.call_webhook_events (franchise_id, service_id, received_at desc);
 create index if not exists idx_call_webhook_events_pending on public.call_webhook_events (processed_at, received_at);
+alter table public.call_webhook_events enable row level security;
 revoke all on public.call_webhook_events from anon, authenticated;
 grant select, insert, update on public.call_webhook_events to service_role;

@@ -231,14 +231,14 @@ export function NovoMaterialDialog({ aberto, onFechar, onCriado, podeIndexar }: 
           {tipo === "promocoes" ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="material-promocao-campos">
               {([
-                ["descricao", "Descrição", "Ex.: desconto no trecho aeroporto-centro"],
-                ["beneficio", "Benefício ou desconto", "Ex.: 10% de desconto"],
-                ["pagamento", "Forma de pagamento", "Ex.: Pix e cartão"],
-                ["elegibilidade", "Perfil elegível", "Ex.: todos os passageiros"],
+                ["descricao", t("Descrição"), t("Ex.: desconto no trecho aeroporto-centro")],
+                ["beneficio", t("Benefício ou desconto"), t("Ex.: 10% de desconto")],
+                ["pagamento", t("Forma de pagamento"), t("Ex.: Pix e cartão")],
+                ["elegibilidade", t("Perfil elegível"), t("Ex.: todos os passageiros")],
               ] as const).map(([campo, rotulo, placeholder]) => (
                 <div className="space-y-1" key={campo}>
-                  <Label htmlFor={`promocao-${campo}`}>{t(rotulo)}</Label>
-                  <Input id={`promocao-${campo}`} value={promocao[campo]} placeholder={t(placeholder)} onChange={(e) => setPromocao((p) => ({ ...p, [campo]: e.target.value }))} disabled={enviando} />
+                  <Label htmlFor={`promocao-${campo}`}>{rotulo}</Label>
+                  <Input id={`promocao-${campo}`} value={promocao[campo]} placeholder={placeholder} onChange={(e) => setPromocao((p) => ({ ...p, [campo]: e.target.value }))} disabled={enviando} />
                 </div>
               ))}
               <div className="space-y-1"><Label htmlFor="promocao-inicio">{t("Início da validade")}</Label><Input id="promocao-inicio" type="date" value={promocao.inicio} onChange={(e) => setPromocao((p) => ({ ...p, inicio: e.target.value }))} disabled={enviando} /></div>

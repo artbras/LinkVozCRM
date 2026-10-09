@@ -157,6 +157,11 @@ describe("a sétima cópia não nasce", () => {
    * último caso), para não sobrar autorização em nome de código que sumiu.
    */
   const LEITURAS_LEGITIMAS: ReadonlyArray<{ arquivo: string; trecho: string; motivo: string }> = [
+    {
+      arquivo: "lib/tarifa/consulta.ts",
+      trecho: "endereco_resolvido: row.display_name ?? endereco",
+      motivo: "nome do endereço devolvido pelo geocodificador, não rótulo de contato",
+    },
     // ── prospecção (PR #963): nenhuma destas é nome de CONTATO ──────────────
     {
       arquivo: "app/app/prospecting/_client.tsx",

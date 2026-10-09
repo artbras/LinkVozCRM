@@ -138,9 +138,9 @@ export function PainelDeTarifas({
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
           {money("adicionais", "bagagem", "Bagagem")}
           {money("adicionais", "aeroporto", "Aeroporto")}
-          {money("adicionais", "pedagio", "Pedágio")}
+          {money("adicionais", "pedagio", t("Pedágio"))}
           {money("adicionais", "retorno", "Retorno")}
-          {money("adicionais", "corrida_minima", "Corrida mínima")}
+          {money("adicionais", "corrida_minima", t("Corrida mínima"))}
           {money("adicionais", "outros", "Outros")}
         </div>
       </div>
