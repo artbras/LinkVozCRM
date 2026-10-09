@@ -5,6 +5,7 @@ set -euo pipefail
 COMPOSE="docker-compose.prod.yml"
 COMPOSE_TRAEFIK="docker-compose.traefik.yml"
 COMPOSE_NPM="docker-compose.npm.yml"
+COMPOSE_APACHE="docker-compose.apache.yml"
 # Overlay que constrói as imagens no lugar de puxá-las. Existe no repo com
 # `pull_policy: never` nas três imagens e sai do MESMO commit que o `git
 # checkout` deixou no disco — é o caminho de quem não consegue usar as imagens
@@ -60,6 +61,9 @@ unset _deskcomm_chamador
 #             Docker — o roteamento é manual, na UI dele). Entra o override, que
 #             desliga o Caddy e garante o `app` na rede/IP que o Proxy Host
 #             espera. Ver o cabeçalho de docker-compose.npm.yml.
+#   apache  → Apache roda no host e encaminha para a porta local do app; usa
+#             docker-compose.apache.yml para desativar o Caddy, sem gerenciar
+#             o proxy. Ver docs/runbooks/apache-proxy.md.
 #
 # Todo `docker compose` do kit passa por aqui: com proxy externo, um comando sem
 # o override subiria o Caddy e ele iria bater de frente com o proxy da hospedagem.
@@ -71,6 +75,7 @@ dc() {
   case "${REVERSE_PROXY:-caddy}" in
   traefik) docker compose -f "$COMPOSE" -f "$COMPOSE_TRAEFIK" "$@" ;;
   npm)     docker compose -f "$COMPOSE" -f "$COMPOSE_NPM" "$@" ;;
+  apache)  docker compose -f "$COMPOSE" -f "$COMPOSE_APACHE" "$@" ;;
   *)       docker compose -f "$COMPOSE" "$@" ;;
   esac
 }
@@ -86,6 +91,7 @@ dc_files() {
   case "${REVERSE_PROXY:-caddy}" in
   traefik) printf -- '-f %s -f %s' "$COMPOSE" "$COMPOSE_TRAEFIK" ;;
   npm)     printf -- '-f %s -f %s' "$COMPOSE" "$COMPOSE_NPM" ;;
+  apache)  printf -- '-f %s -f %s' "$COMPOSE" "$COMPOSE_APACHE" ;;
   *)       printf -- '-f %s' "$COMPOSE" ;;
   esac
 }
