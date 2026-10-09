@@ -113,20 +113,24 @@ A integração Call → CRM pelo webhook interno já normaliza e persiste:
 - `step`, unidade, modelo, placa, ETA e coordenadas quando presentes;
 - exceções, severidade, handoff e deduplicação por `event_id`.
 
-A versão publicada da CoopNorte é a versão 6 e contém a tool `crm_call_lookup_operational_state`. As imagens implantadas são:
-
-```text
-ghcr.io/artbras/deskcommcrm:f6abea50b
-ghcr.io/artbras/deskcomm-worker:f6abea50b
-```
-
-Ambos os containers foram verificados como `healthy`.
+A versão publicada da CoopNorte é a versão 13 e contém as tools `crm_call_lookup_service` e `crm_call_lookup_operational_state`. Em 2026-10-09, os containers `crm-app-1` e `crm-worker-1` estavam saudáveis e usavam `ghcr.io/artbras/deskcommcrm:main` e `ghcr.io/artbras/deskcomm-worker:main`, ambos com revisão OCI `821fc15de504d681f3ab21a66564a689b3a742a7`.
 
 ## O que ainda falta para concluir a Fase 2
 
-### 1. Corrigir ou publicar a leitura de corrida no Call
+### 1. Consulta detalhada de corrida (Call → CRM)
 
-`crm_call_lookup_service` já existe no CRM, mas a ação `servico` não está presente no checkout efetivamente implantado do Call. É necessário preparar a alteração no repositório oficial do Call, publicar uma revisão identificada e somente então atualizar a imagem da VPS. Até isso ocorrer, a consulta detalhada direta ao Call permanece bloqueada; o espelho de eventos continua disponível.
+A ação `servico` está presente no Call implantado. Confirmado em 2026-10-09: a requisição `{"acao":"servico","id":999999999}` chegou ao handler e retornou `404 SERVICE_NOT_FOUND`; com os campos antigos do CRM (`idf` e `id_servico`) retornou `422 INVALID_SERVICE_LOOKUP`. O contrato atual do Call espera somente `id` além de `acao` e devolve o registro completo da corrida e `dados_unidade`.
+
+O cliente CRM foi ajustado para enviar `{"acao":"servico","id":<id_da_corrida>}` e preservar o retorno completo. A tool `crm_call_lookup_service` já está registrada e consta na versão publicada 13 do agente CoopNorte, junto com `crm_call_lookup_operational_state`.
+
+Ainda falta para concluir este item:
+
+- publicar e implantar a alteração do adaptador CRM;
+- manter `CALL_AGENT_FRANCHISE_ID=1`, já verificado no container `crm-worker-1` em 2026-10-09 (esse valor não é enviado à ação `servico`);
+- executar um teste controlado com uma corrida real da franquia 1 pela tool do agente publicado, verificando também corrida inexistente e indisponibilidade;
+- configurar e testar no CRM as regras de resposta do agente sobre quais campos do retorno completo podem ser comunicados.
+
+**Limite do contrato atual do Call:** a implementação consulta por `id` sem filtrar `idf` e retorna `SELECT *`. Portanto, o escopo exclusivo da franquia 1 é uma premissa operacional desta instalação, não uma garantia de isolamento implementada nessa ação do Call. Não consulte IDs de outras franquias; se a instalação passar a atendê-las, o Call deverá incluir isolamento por franquia antes de ampliar o uso.
 
 ### 2. Contrato transacional de despacho
 
