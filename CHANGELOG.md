@@ -8,6 +8,14 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 ## [Não lançado]
 
+## [2.0.1] — 2026-10-10
+
+### Corrigido
+
+- **Atualizações com Apache não tentam iniciar o Caddy** Instalações existentes que encaminham o tráfego pelo Apache no host agora usam um overlay que impede o Compose de subir o Caddy. A porta do CRM continua vinculada a `127.0.0.1:3100`; o vhost do Apache permanece sob gestão de quem opera a VPS. Os jobs de CI também usam o espelho público do Google para pulls de imagens Docker Hub e evitar rate limit nos runners anônimos; as referências do Compose de produção não mudam.
+
+- **Inbox volta a carregar as conversas** A lista de conversas da Inbox volta a carregar normalmente. A atualização não exige mudança de configuração.
+
 ## [2.0.0] — 2026-10-09
 
 ### ⚠️ Requer atenção
@@ -8070,7 +8078,8 @@ Primeira versão marcada do DeskcommCRM. O projeto vinha sendo desenvolvido publ
 
 - **Node 22 é obrigatório para desenvolvimento.** A suíte de invariantes instancia o cliente do Supabase, que exige o `WebSocket` global — nativo apenas a partir do Node 22. Isso não afeta quem apenas hospeda: a VPS roda a imagem pronta.
 
-[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v2.0.0...HEAD
+[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/melgarafael/DeskcommCRM/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.49.0...v2.0.0
 [1.49.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.47.0...v1.48.0
