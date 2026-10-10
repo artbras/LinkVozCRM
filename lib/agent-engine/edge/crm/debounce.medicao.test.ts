@@ -60,7 +60,7 @@ async function simular(c: Cenario): Promise<Resumo> {
 
   const pool = {
     query: vi.fn().mockImplementation((sql: string, params: unknown[]) => {
-      if (!sql.includes('select id, last_error from job_queue')) throw new Error(`consulta inesperada: ${sql}`);
+      if (!/select\s+id(?:,\s*last_error)?\s+from job_queue/i.test(sql)) throw new Error(`consulta inesperada: ${sql}`);
       if (String(params[1]) !== alvo.contactId) throw new Error('consulta de carona no contato errado');
       const job = fila.find(
         (j) => j.status === 'pending' && j.runAfter > agora && !j.held,
