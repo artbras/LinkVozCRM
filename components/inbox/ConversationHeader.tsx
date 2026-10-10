@@ -105,6 +105,7 @@ export function ConversationHeader({ conversation, onAbrirConversa }: Props) {
    */
   const { comando, automaticoAtivo, travaVigente, motivo } = comandoDaConversa({
     status,
+    is_group: conversation.is_group ?? false,
     assigned_to_user_id: conversation.assigned_to_user_id,
     assigned_to_user_name: conversation.assigned_to_user_name ?? null,
     assignee_kind: conversation.assignee_kind ?? null,

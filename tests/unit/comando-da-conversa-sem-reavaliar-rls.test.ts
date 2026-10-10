@@ -118,9 +118,16 @@ describe("a 0404 — comando_da_conversa sem reavaliar a RLS (issue #1571)", () 
 
     const sql = ler(path.join(DIR_MIGRACOES, arquivoDaMigration()!));
     const baseline = ler(path.join(RAIZ, "supabase", "baseline.sql"));
-    const apendice = baseline.slice(
-      baseline.lastIndexOf("drop function if exists public.comando_da_conversa(public.conversations);"),
+    // O baseline mantém apêndices históricos e também redefine o wrapper na 0483;
+    // medir só a definição final evita contar duas vezes o mesmo predicado de tenant.
+    const inicioWrapper = baseline.lastIndexOf(
+      "create or replace function public.comando_da_conversa(public.conversations)",
     );
+    const fimWrapper = baseline.indexOf("$comando$;", inicioWrapper);
+    const apendice =
+      inicioWrapper >= 0 && fimWrapper >= 0
+        ? baseline.slice(inicioWrapper, fimWrapper + "$comando$;".length)
+        : "";
 
     const motivo =
       "subconsulta em contacts sem `ct.organization_id = $1.organization_id`: sob o definer, uma conversa apontada para contato de outra empresa leria force_human/is_blocked dele";
