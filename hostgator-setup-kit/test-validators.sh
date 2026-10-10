@@ -3123,9 +3123,9 @@ echo "integração: update.sh com proxy externo nunca recria o Caddy sozinho"
 # `up -d --force-recreate --no-deps caddy` NOMEIA o serviço — e nomear um
 # serviço ATIVA o profile dele no Compose mesmo com o override presente (é o
 # mesmo defeito que o docker-compose.traefik.yml já documenta). Com um segundo
-# proxy (Traefik OU NPM) já nas portas 80/443, isso sobe um Caddy que bate de
-# frente com ele. A checagem por CADA valor evita que só o Traefik continue
-# coberto e o NPM (o proxy novo) reproduza o defeito que motivou o guard.
+# proxy (Traefik, NPM ou Apache no host) já nas portas 80/443, isso sobe um Caddy
+# que bate de frente com ele. A checagem por CADA valor evita que um proxy
+# externo deixe o kit iniciar o Caddy que não deve gerenciar.
 caddy_skip_e2e() {  # caddy_skip_e2e <descrição> <REVERSE_PROXY> <linha extra do .env> <deve tentar recriar: sim|nao>
   local desc="$1" rp="$2" extra="$3" esperado="$4" dir tentou
   dir="$(mktemp -d)"
@@ -3138,6 +3138,7 @@ case "$1" in
 esac
 exit 0
 STUB
+    if [ "$rp" = "apache" ]; then cp ../docker-compose.apache.yml "$VPS_PROJ/"; fi
     (cd "$VPS_PROJ" && git init -q -b main . \
       && git -c user.email=t@exemplo -c user.name=teste add -A \
       && git -c user.email=t@exemplo -c user.name=teste commit -qm base \
@@ -3153,12 +3154,16 @@ NEXT_PUBLIC_APP_URL='https://crm.exemplo.com.br'" >/dev/null
     fi
     if [ "$tentou" = "$esperado" ]; then printf '  ✓ %s\n' "$desc"
     else printf '  ✗ %s  (tentou recriar: %s, esperado: %s)\n' "$desc" "$tentou" "$esperado"; exit 1; fi
+    if [ "$rp" = "apache" ] && ! grep -qF -- '-f docker-compose.apache.yml' "$VPS_LOG"; then
+      printf '  ✗ apache no host: o update.sh não carregou o overlay que desativa o Caddy\n'; exit 1
+    fi
   ) || fail=1
   rm -rf "$dir"
 }
 caddy_skip_e2e "caddy (default): recria o próprio proxy"       caddy   ""                                          sim
 caddy_skip_e2e "traefik: nunca recria o Caddy"                  traefik "TRAEFIK_NETWORK='crmcaddyskip_proxy'"      nao
 caddy_skip_e2e "npm: nunca recria o Caddy"                      npm     "PROXY_NETWORK_NAME='proxy_network'"       nao
+caddy_skip_e2e "apache no host: nunca recria o Caddy"           apache  ""                                          nao
 
 echo "nome do projeto que o docker compose usa"
 # O compose faz TrimLeft("_-") no basename. Sem isso, uma pasta /root/_deskcomm

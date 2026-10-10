@@ -95,12 +95,13 @@ echo "quem já instalou (modo comum) não muda:"
 kit 'pg_container postgres:17-alpine psql x -c "select 1"' >/dev/null
 check "pg_container sem rede privada é o docker run --rm de antes" \
   igual "$(head -1 "$LOG")" 'run --rm postgres:17-alpine psql x -c select 1'
-for proxy in caddy traefik npm; do
+for proxy in caddy traefik npm apache; do
   arqs="$(REVERSE_PROXY="$proxy" kit 'dc_files')"
   case "$proxy" in
     caddy) esperado='-f docker-compose.prod.yml' ;;
     traefik) esperado='-f docker-compose.prod.yml -f docker-compose.traefik.yml' ;;
     npm) esperado='-f docker-compose.prod.yml -f docker-compose.npm.yml' ;;
+    apache) esperado='-f docker-compose.prod.yml -f docker-compose.apache.yml' ;;
   esac
   check "dc_files com proxy $proxy não ganhou o override do single-server" igual "$arqs" "$esperado"
 done

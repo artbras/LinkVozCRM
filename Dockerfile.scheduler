@@ -5,7 +5,7 @@
 # porque instalar pacote em todo start amarra a recuperação do cron do cliente à
 # internet da VPS e ao mirror do Alpine — dependência de rede num caminho que
 # deveria ser offline. Doutrina: docs/doctrine/packaging.md, invariante 1.
-FROM alpine:3.20
+FROM mirror.gcr.io/alpine:3.20
 
 LABEL org.opencontainers.image.source="https://github.com/melgarafael/DeskcommCRM" \
       org.opencontainers.image.licenses="MIT" \

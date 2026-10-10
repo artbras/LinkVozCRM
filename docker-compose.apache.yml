@@ -1,0 +1,6 @@
+# Apache runs on the host and proxies to 127.0.0.1:3100.
+# Keep the CRM app's loopback port binding from docker-compose.prod.yml, but do
+# not start the bundled Caddy on host ports 80/443.
+services:
+  caddy:
+    profiles: ["caddy-nao-usado-com-proxy-externo"]

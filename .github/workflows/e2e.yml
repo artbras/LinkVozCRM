@@ -1266,12 +1266,12 @@ jobs:
           # isso em 01/09/2026 (o digest do `latest` virou 2026.8.2 enquanto o
           # pin segue em 2026.7.2). Medido no run 35095923107: com `:latest` o
           # contêiner NÃO sobe.
-          WAHA_IMAGE: devlikeapro/waha:latest-2026.7.2
-          REDIS_IMAGE: redis:7-alpine
+          WAHA_IMAGE: mirror.gcr.io/devlikeapro/waha:latest-2026.7.2
+          REDIS_IMAGE: mirror.gcr.io/redis:7-alpine
           # O MESMO digest do compose: `:latest` é tag móvel. Medido em
           # 2026-09-16 com `docker buildx imagetools inspect`: o `:latest` de
           # então É este índice. Bumpar é junto com o compose.
-          SRH_IMAGE: hiett/serverless-redis-http@sha256:5b0bb9239fce53abf87b2018a7a0deb9ec7bd900c5360738fe5fbeeb426f9150
+          SRH_IMAGE: mirror.gcr.io/hiett/serverless-redis-http@sha256:5b0bb9239fce53abf87b2018a7a0deb9ec7bd900c5360738fe5fbeeb426f9150
           # Inerte nesta jornada, e escrito para não parecer que funciona: o job
           # roda no host, então o 127.0.0.1 de dentro do WAHA é o próprio WAHA.
           # O que a spec exercita é app→WAHA (o QR), não o webhook de volta.

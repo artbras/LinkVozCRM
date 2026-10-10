@@ -226,7 +226,7 @@ describe("a parte 4 do e2e fala com os serviços que ela sobe", () => {
   it("o serverless-redis-http do CI é a MESMA imagem do docker-compose.prod.yml", () => {
     const doCompose = compose.match(/image:\s*(hiett\/serverless-redis-http\S*)/)?.[1];
     const doCi = passoInteiro(NOME_DO_PASSO_DOS_SERVICOS).match(
-      /SRH_IMAGE:\s*(hiett\/serverless-redis-http\S*)/,
+      /SRH_IMAGE:\s*(?:mirror\.gcr\.io\/)?(hiett\/serverless-redis-http\S*)/,
     )?.[1];
     expect(doCompose, "o compose deixou de declarar o serverless-redis-http").toBeTruthy();
     expect(doCi, "tag móvel ou imagem diferente da que o self-hoster recebe").toBe(doCompose);
