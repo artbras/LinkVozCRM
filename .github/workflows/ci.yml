@@ -569,7 +569,7 @@ jobs:
     env:
       # Uma variável, os dois scripts: `scripts/test-db.sh` e
       # `scripts/test-update-com-dados.sh` leem esta para escolher a imagem.
-      TEST_DB_IMAGE: pgvector/pgvector:pg${{ matrix.pg }}
+      TEST_DB_IMAGE: mirror.gcr.io/pgvector/pgvector:pg${{ matrix.pg }}
     steps:
       - uses: actions/checkout@v7
 

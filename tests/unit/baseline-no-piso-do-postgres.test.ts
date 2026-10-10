@@ -240,7 +240,7 @@ describe("o baseline fica no piso de Postgres que dizemos suportar", () => {
     // 2. A major da matriz CHEGA nos scripts. Sem esta linha as duas pernas
     //    sobem pg15 e a cobertura vira verde medindo a mesma coisa duas vezes.
     expect(ci).toMatch(
-      /TEST_DB_IMAGE:\s*pgvector\/pgvector:pg\$\{\{\s*matrix\.pg\s*\}\}/,
+      /TEST_DB_IMAGE:\s*mirror\.gcr\.io\/pgvector\/pgvector:pg\$\{\{\s*matrix\.pg\s*\}\}/,
     );
 
     // 3. O script que re-aplica o baseline sobre banco COM DADOS é invocado por

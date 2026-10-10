@@ -1,6 +1,6 @@
 # Worker de voz (SIP/ARI + IA em tempo real) — mesmo padrão do Dockerfile.worker:
 # roda TS direto via tsx (sem build), imagem single-stage com devDeps.
-FROM node:22-alpine
+FROM mirror.gcr.io/node:22-alpine
 
 WORKDIR /app
 
