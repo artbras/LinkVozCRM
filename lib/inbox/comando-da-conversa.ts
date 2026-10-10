@@ -87,6 +87,8 @@ export interface FatosDoComando {
    * controle decorativo, que é pior que ausência de botão.
    */
   is_blocked?: boolean | null;
+  /** Grupos não entram no atendimento automático (`is_group` da conversa). */
+  is_group?: boolean | null;
 }
 
 export type Comando =
@@ -133,7 +135,7 @@ export type MotivoDoSilencio =
 
 export interface ComandoDaConversa {
   comando: Comando;
-  /** O automático responderia a próxima mensagem do cliente? */
+  /** O automático responderia à próxima mensagem desta conversa? */
   automaticoAtivo: boolean;
   /**
    * Existe uma TRAVA vigente a devolver — silêncio na conversa ou `force_human`
@@ -148,7 +150,7 @@ export interface ComandoDaConversa {
    * existe para o dono e a rota recusa quem não é.
    */
   travaVigente: boolean;
-  /** Por que ele está calado. `null` quando está ativo. */
+  /** Por que ele está calado. `null` quando ativo ou sem motivo de silêncio (ex.: grupo). */
   motivo: MotivoDoSilencio | null;
   /**
    * Quando o silêncio se desfaz sozinho — só existe para
@@ -222,6 +224,7 @@ export function comandoDaConversa(fatos: FatosDoComando, agora: Date = new Date(
   const silencio = silencioVigente(fatos.bot_silenced_until, agora);
   const travado = fatos.force_human === true;
   const bloqueado = fatos.is_blocked === true;
+  const grupo = fatos.is_group === true;
   const encerrada = STATUS_ENCERRADOS.has(fatos.status);
 
   const comando: Comando = fatos.assigned_to_user_id
@@ -234,7 +237,7 @@ export function comandoDaConversa(fatos: FatosDoComando, agora: Date = new Date(
       ? { quem: "encerrada" }
       : // Sem dono: quem manda depende do automático estar de pé. Calado e sem
         // dono é a conversa que o automático escalou e ninguém pegou — a fila.
-        silencio.vigente || travado || bloqueado
+        grupo || silencio.vigente || travado || bloqueado
         ? { quem: "aguardando" }
         : fatos.automaticoDaOrg === false
           ? { quem: "ninguem" }
@@ -251,13 +254,15 @@ export function comandoDaConversa(fatos: FatosDoComando, agora: Date = new Date(
    */
   const comandoFinal: Comando = comando;
 
-  const automaticoAtivo = !encerrada && !travado && !bloqueado && !silencio.vigente;
+  const automaticoAtivo = !encerrada && !grupo && !travado && !bloqueado && !silencio.vigente;
 
   const motivo: MotivoDoSilencio | null = automaticoAtivo
     ? null
     : encerrada
       ? null // Encerrada não é silêncio: é ausência de assunto. O estado já diz.
-      : bloqueado
+      : grupo
+        ? null // Grupo não é pausa: o motor não atende grupos.
+        : bloqueado
         ? // ANTES de `travado`, de propósito: quando as duas valem, é o opt-out que
           // decide a AÇÃO — não há nenhuma. Nomear a trava menor faria a tela
           // sugerir um "devolver" que o `stopGate` recusaria na sequência.
@@ -281,7 +286,7 @@ export function comandoDaConversa(fatos: FatosDoComando, agora: Date = new Date(
     automaticoAtivo,
     // `bloqueado` ANULA a trava devolvível: veja o comentário de `is_blocked` em
     // `FatosDoComando`. Devolver não desfaz opt-out, e o botão seria decorativo.
-    travaVigente: (travado || silencio.vigente) && !bloqueado,
+    travaVigente: (travado || silencio.vigente) && !bloqueado && !grupo,
     motivo,
     silencioAte: motivo === "resposta_humana_recente" ? silencio.ate : null,
   };

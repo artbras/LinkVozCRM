@@ -175,6 +175,7 @@ export function ConversationListItem({
    */
   const { comando } = comandoDaConversa({
     status: conversation.status,
+    is_group: conversation.is_group ?? false,
     assigned_to_user_id: conversation.assigned_to_user_id,
     assigned_to_user_name: conversation.assigned_to_user_name ?? null,
     assignee_kind: conversation.assignee_kind ?? null,

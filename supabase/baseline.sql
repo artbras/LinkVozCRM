@@ -38306,6 +38306,91 @@ alter function public.fn_redigir_call_operational_exceptions_ao_anonimizar() own
 revoke all on function public.fn_redigir_call_operational_exceptions_ao_anonimizar() from public;
 revoke execute on function public.fn_redigir_call_operational_exceptions_ao_anonimizar() from anon, authenticated, service_role;
 
+-- ---- resolver sobrecargas do comando da conversa (migration 0483) ----
+--
+-- `CREATE OR REPLACE`, então removemos esse default (sem `CASCADE`) só quando
+-- ele existe. A chamada legada de seis argumentos permanece na assinatura de seis;
+-- a nova recebe `is_group` explicitamente. `pg_depend` não tem dependências para
+-- a assinatura de sete argumentos no schema publicado. Nas reaplicações, o default
+-- já não existe e o OID/ACL da função é preservado. Esta posição é ANTES da
+-- varredura anon, que precisa continuar sendo o último bloco.
+do $retirar_default$
+declare
+  assinatura oid := to_regprocedure(
+    'public.fn_comando_da_conversa(text,uuid,timestamptz,boolean,boolean,timestamptz,boolean)'
+  )::oid;
+begin
+  if assinatura is not null and exists (
+    select 1 from pg_proc p where p.oid = assinatura and p.pronargdefaults > 0
+  ) then
+    execute 'drop function public.fn_comando_da_conversa(text,uuid,timestamptz,boolean,boolean,timestamptz,boolean)';
+  end if;
+end
+$retirar_default$;
+
+create or replace function public.fn_comando_da_conversa(
+  p_status                text,
+  p_assigned_to_user_id   uuid,
+  p_bot_silenced_until    timestamptz,
+  p_force_human           boolean,
+  p_is_blocked            boolean,
+  p_agora                 timestamptz,
+  p_is_group              boolean
+) returns text
+language sql
+immutable
+set search_path = public
+as $fn_comando$
+  select case
+    when p_assigned_to_user_id is not null then 'humano'
+    when p_status in ('closed', 'archived', 'resolved') then 'encerrada'
+    when p_is_group is true
+      or p_force_human is true
+      or p_is_blocked is true
+      or (p_bot_silenced_until is not null and p_bot_silenced_until > p_agora) then 'aguardando'
+    else 'automatico'
+  end;
+$fn_comando$;
+
+comment on function public.fn_comando_da_conversa(
+  text, uuid, timestamptz, boolean, boolean, timestamptz, boolean
+) is 'Quem manda na conversa. Espelho SQL de comandoDaConversa() (lib/inbox/comando-da-conversa.ts); grupo sem dono fica aguardando. A assinatura de sete argumentos não tem default para coexistir sem ambiguidade com a assinatura legada de seis.';
+
+revoke execute on function public.fn_comando_da_conversa(
+  text, uuid, timestamptz, boolean, boolean, timestamptz, boolean
+) from public, anon;
+grant execute on function public.fn_comando_da_conversa(
+  text, uuid, timestamptz, boolean, boolean, timestamptz, boolean
+) to authenticated, service_role;
+
+-- Parâmetro composto SEM NOME: não o expor como RPC. Só muda o corpo do campo
+-- calculado; a leitura dos bits de contato continua no tenant da conversa.
+create or replace function public.comando_da_conversa(public.conversations)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $comando$
+  select public.fn_comando_da_conversa(
+    $1.status,
+    $1.assigned_to_user_id,
+    $1.bot_silenced_until,
+    coalesce((select ct.force_human from public.contacts ct where ct.id = $1.contact_id and ct.organization_id = $1.organization_id), false),
+    coalesce((select ct.is_blocked  from public.contacts ct where ct.id = $1.contact_id and ct.organization_id = $1.organization_id), false),
+    now(),
+    coalesce($1.is_group, false)
+  );
+$comando$;
+
+comment on function public.comando_da_conversa(public.conversations)
+  is 'Campo calculado do PostgREST: resolve force_human/is_blocked apenas do contato da mesma organização, carimba now() e encaminha is_group à regra. SECURITY DEFINER desde a 0404; parâmetro sem nome para não expor como RPC.';
+
+revoke execute on function public.comando_da_conversa(public.conversations) from public, anon;
+grant execute on function public.comando_da_conversa(public.conversations) to authenticated, service_role;
+
+notify pgrst, 'reload schema';
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ DE PROPÓSITO, NENHUMA FUNÇÃO É CRIADA DEPOIS DESTE BLOCO. Apêndice que cria

@@ -35,6 +35,14 @@ describe("comandoDaConversa — quem manda", () => {
     expect(r.motivo).toBeNull();
   });
 
+  it("grupo sem dono fica aguardando e não anuncia o automático", () => {
+    const r = comandoDaConversa({ ...fatos(), is_group: true }, AGORA);
+    expect(r.comando).toEqual({ quem: "aguardando" });
+    expect(r.automaticoAtivo).toBe(false);
+    expect(r.travaVigente).toBe(false);
+    expect(r.motivo).toBeNull();
+  });
+
   it("com dono: a pessoa manda, e o nome vem junto quando o servidor o resolveu", () => {
     const r = comandoDaConversa(
       fatos({ assigned_to_user_id: ATENDENTE, assigned_to_user_name: "Maria Silva" }),

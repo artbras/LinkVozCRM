@@ -429,3 +429,4 @@ To re-apply on a fresh Supabase project, replay the migrations in version order 
 | `20261006020000` | `0419_call_phase2_state_exceptions` | Espelho operacional por serviço e exceções escaladas, com vocabulário fechado de categoria, severidade e estado. |
 | `20261008180000` | `0416_serializa_turno_por_conversa` | Índice único parcial que impede dois turnos `inbound_turn` da mesma conversa em execução simultânea. |
 | `20261009152436` | `0420_redigir_excecoes_call_ao_anonimizar` | Ao anonimizar um contato, desvincula exceções do Call e limpa payload e handoff livre; marcador e trigger impedem reintrodução em escritas futuras, além de redação de linhas legadas. |
+| `20261010113050` | `0483_comando_da_conversa_sem_ambiguidade` | Remove o default da assinatura de sete argumentos para preservar a chamada legada de seis sem ambiguidade; passa `is_group` ao campo calculado da Inbox. |
